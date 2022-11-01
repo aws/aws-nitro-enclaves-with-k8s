@@ -1,0 +1,11 @@
+{
+  "region" : "eu-central-1",
+  "ami_id" : "ami-068d000e86e5d6a81",
+  "ami_id_desc" : "eu-central-1 / amazon-eks-node-1.22-v20220824",
+  "instance_type" : "m5.2xlarge",
+  "eks_cluster_name" : "eks-ne-demo",
+  "eks_managed_wg_name" : "eks-ne-man-worker",
+  "k8s_version" : "1.22",
+  "ecr_repo_name" : "hello-nitro-enclaves",
+  "ecr_kms_repo_name" : "kms-nitro-enclaves"
+}
