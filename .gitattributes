@@ -1,0 +1,2 @@
+container/hello.eif filter=lfs diff=lfs merge=lfs -text
+container/kmstool.eif filter=lfs diff=lfs merge=lfs -text
