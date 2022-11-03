@@ -6,11 +6,11 @@ FROM fedora:34
 RUN yum makecache --refresh
 RUN yum install jq bash util-linux file awscli -y
 
-COPY kmstool.eif                            /home/kmstool.eif
+COPY ../examples/bin/kmstool.eif            /home/kmstool.eif
+COPY ../examples/bin/kmstool_instance       /kmstool_instance
+COPY ../examples/bin/libnsm.so              /usr/lib64/libnsm.so
 COPY test-enclave-policy.json               /home/test-enclave-policy.json
 COPY run_kms.sh                             /home/run.sh
-COPY enclave-tools/kmstool_instance         /kmstool_instance
-COPY enclave-tools/libnsm.so                /usr/lib64/libnsm.so
 COPY enclave-tools/vsock-proxy              /usr/bin/vsock-proxy
 COPY enclave-tools/nitro-cli                /usr/bin/nitro-cli
 COPY enclave-tools/nitro-enclaves-allocator /usr/bin/nitro-enclaves-allocator

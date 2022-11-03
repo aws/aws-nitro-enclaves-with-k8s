@@ -5,8 +5,8 @@ FROM alpine:latest
 
 RUN apk add --no-cache jq bash util-linux file
 
-COPY hello.eif /home/
-COPY run.sh /home
+COPY ../examples/bin/hello.eif              /home/
+COPY run.sh                                 /home
 COPY enclave-tools/nitro-cli                /usr/bin/nitro-cli
 COPY enclave-tools/nitro-enclaves-allocator /usr/bin/nitro-enclaves-allocator
 COPY enclave-tools/allocator.yaml           /etc/nitro_enclaves/allocator.yaml
