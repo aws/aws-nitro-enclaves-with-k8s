@@ -47,7 +47,8 @@ fi
 
 ecr_kms_repo_uri=$(cat last_kms_repository.uri)
 ecr_repo_addr=$(echo $ecr_kms_repo_uri | cut -d '/' -f1)
-dockerfile_path=$(dirname $(realpath $0))/container/kms
+container_path=$(dirname $(realpath $0))/container
+dockerfile_path=container/kms/Dockerfile
 
 ####################################################
 # AWS CLI
@@ -60,7 +61,7 @@ aws ecr get-login-password \
 # Docker
 ####################################################
 
-docker image rm $ecr_kms_repo_name:latest
-docker build -t $ecr_kms_repo_name:latest -f $dockerfile_path/KMS.dockerfile $dockerfile_path
+docker image rm $ecr_kms_repo_name:latest || true
+docker build -t $ecr_kms_repo_name:latest -f $dockerfile_path $container_path
 docker tag $ecr_kms_repo_name:latest $ecr_kms_repo_uri
 docker push $ecr_kms_repo_uri
