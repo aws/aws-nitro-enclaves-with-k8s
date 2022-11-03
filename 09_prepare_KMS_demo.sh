@@ -18,7 +18,7 @@ if [[ -z "$POLICY_ARN" ]]
 then
     aws iam create-policy \
         --policy-name enclave_sa_policy \
-        --policy-document file://container/enclave_sa_policy.json
+        --policy-document file://container/kms/enclave_sa_policy.json
     POLICY_ARN=$(aws iam list-policies --query 'Policies[?PolicyName==`enclave_sa_policy`].Arn' --output text)
 fi
 echo $POLICY_ARN
@@ -47,7 +47,7 @@ fi
 
 ecr_kms_repo_uri=$(cat last_kms_repository.uri)
 ecr_repo_addr=$(echo $ecr_kms_repo_uri | cut -d '/' -f1)
-dockerfile_path=$(dirname $0)/container
+dockerfile_path=$(dirname $(realpath $0))/container/kms
 
 ####################################################
 # AWS CLI
