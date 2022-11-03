@@ -7,7 +7,7 @@ FROM amazonlinux
 RUN amazon-linux-extras install aws-nitro-enclaves-cli && \
     yum install aws-nitro-enclaves-cli-devel -y
 
-COPY bin/hello.eif                          /home
-COPY run.sh                                 /home
+COPY bin/hello.eif /home
+COPY hello/run.sh  /home
 
 CMD ["/home/run.sh"]

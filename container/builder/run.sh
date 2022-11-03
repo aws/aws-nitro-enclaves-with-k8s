@@ -31,6 +31,7 @@ declare -A hello=(
 	[image_name]="ne-build-hello-eif" 
 	[path]="hello-eif"
 	[run_script]="https://raw.githubusercontent.com/aws/aws-nitro-enclaves-cli/main/examples/x86_64/hello/hello.sh"
+	[run_script_name]="hello.sh"
 	[tag]="1.0"
 )
 
@@ -59,6 +60,7 @@ declare -A kmsi=(
 mkdir -p ${hello[path]}
 fetch_file ${hello[dockerfile]} ${hello[path]}
 fetch_file ${hello[run_script]} ${hello[path]}
+chmod +x ${hello[path]}/${hello[run_script_name]}
 docker build -t ${hello[image_name]}:${hello[tag]} ${hello[path]}
 build_eif ${hello[image_name]} ${hello[tag]} ${hello[eif]}
 

@@ -27,6 +27,13 @@ do
 done
 
 ####################################################
+# AWS CLI
+####################################################
+# TODO: Remove when the public registry/repository becomes available.
+aws ecr get-login-password \
+	--region eu-west-1 | docker login --username AWS --password-stdin 709843417989.dkr.ecr.eu-west-1.amazonaws.com
+
+####################################################
 # Pull ne-kms-demo-binaries repository
 ####################################################
 
