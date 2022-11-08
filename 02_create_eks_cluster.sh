@@ -10,7 +10,7 @@ lt_id=$(cat last_launch_template.id)
 cluster_config_file=""
 
 ####################################################
-# EXIT_HANDLER
+# Exit Handler
 ####################################################
 function on_exit {
   if [ "$cluster_config_file" != "" ]; then
@@ -22,7 +22,7 @@ function on_exit {
 trap on_exit EXIT
 
 ####################################################
-# EKSCTL ClusterConfig
+# EKSCTL ClusterConfig generation
 ####################################################
 
 cluster_config=$(cat<<EOF
@@ -44,15 +44,14 @@ managedNodeGroups:
 EOF
 )
 
-cluster_config_file=/tmp/eks_cc_$(cat /proc/sys/kernel/random/uuid).yaml
+cluster_config_file=$(dirname $(realpath $0))/eks_cc_$(cat /proc/sys/kernel/random/uuid).yaml
 echo "##############################################################"
 echo "Using $cluster_config_file to create cluster. Cluster creation operation will take 15-20 minutes."
 echo "##############################################################"
 
-_IFS=$IFS
-IFS=
+reset_ifs
 printf '%s\n' $cluster_config  > $cluster_config_file
-IFS=$_IFS
+restore_ifs
 cat $cluster_config_file
 
 ####################################################
