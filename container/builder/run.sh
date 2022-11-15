@@ -1,75 +1,123 @@
-#!/bin/bash -e
+#!/bin/bash
 # Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-function build_eif {
-	local image_name=$1
-	local tag=$2
-	local eif_name=$3
+readonly SUCCESS=0
+readonly FAILURE=255
 
-	nitro-cli build-enclave --docker-uri $image_name:$tag --output-file /output/$eif_name
+readonly BUILDER_INSTANCE_OUTPUT_PATH=/output
+readonly BUILDER_INSTANCE_SOURCE_PATH=/source
+readonly BUILDER_INSTANCE_ENCLAVE_MANIFEST="$BUILDER_INSTANCE_SOURCE_PATH/enclave_manifest.json"
+
+die() {
+  local code=1
+  [[ "$1" = "-c" ]] && {
+    code="$2"
+    shift 2
+  }
+  say_err "$@"
+  exit $code
 }
 
-function fetch_file {
-	local http_addr=$1
-	local directory=$2
-
-	wget --directory-prefix=$directory $http_addr
+say_err() {
+  [ -t 2 ] && [ -n "$TERM" ] \
+    && echo "$(tput setaf 1)[BUILDER] $*$(tput sgr0)" 1>&2 \
+    || echo "[BUILDER] $*" 1>&2
 }
 
-function clone_repository {
-	local repo_addr=$1
-	local directory=$2
-
-	git clone --depth 1 $repo_addr $directory
+say() {
+  [ -t 1 ] && [ -n "$TERM" ] \
+    && echo "$(tput setaf 2)[BUILDER]$(tput sgr0) $*" \
+    || echo "[BUILDER] $*"
 }
 
-# Parameters to build hello.eif enclave image.
-declare -A hello=( 
-	[dockerfile]="https://raw.githubusercontent.com/aws/aws-nitro-enclaves-cli/main/examples/x86_64/hello/Dockerfile"
-	[eif]="hello.eif"
-	[image_name]="ne-build-hello-eif" 
-	[path]="hello-eif"
-	[run_script]="https://raw.githubusercontent.com/aws/aws-nitro-enclaves-cli/main/examples/x86_64/hello/hello.sh"
-	[run_script_name]="hello.sh"
-	[tag]="1.0"
-)
+build_eif() {
+  local image_name=$1
+  local tag=$2
+  local eif_name=$3
 
-# Parameters to build kmstool.eif enclave image.
-declare -A kmse=( 
-	[dockerfile]="kms-binaries/containers/Dockerfile.al2"
-	[eif]="kmstool.eif"
-	[image_name]="ne-build-kms-eif" 
-	[path]="kms-binaries"
-	[repository]="https://github.com/aws/aws-nitro-enclaves-sdk-c"
-	[tag]="1.0"
-	[target]="kmstool-enclave"
-)
+  nitro-cli build-enclave --docker-uri $image_name:$tag --output-file /output/$eif_name
+}
 
-# Parameters to build kmstool_instance application that runs on the instance.
-declare -A kmsi=( 
-	[dockerfile]="kms-binaries/containers/Dockerfile.al2"
-	[image_name]="ne-build-kmstool-instance" 
-	[path]="kms-binaries"
-	[repository]="https://github.com/aws/aws-nitro-enclaves-sdk-c"
-	[tag]="1.0"
-	[target]="kmstool-instance"
-)
+clone_repository() {
+  local repo_addr=$1
+  local directory=$2
+  local tag=$3
 
-# Build EIF for hello demo
-mkdir -p ${hello[path]}
-fetch_file ${hello[dockerfile]} ${hello[path]}
-fetch_file ${hello[run_script]} ${hello[path]}
-chmod +x ${hello[path]}/${hello[run_script_name]}
-docker build -t ${hello[image_name]}:${hello[tag]} ${hello[path]}
-build_eif ${hello[image_name]} ${hello[tag]} ${hello[eif]}
+  git clone --depth 1 $repo_addr -b $tag $directory
+}
 
-# aws-nitro-enclaves-sdk-c is needed to build KMS deliverables
-clone_repository ${kmse[repository]} ${kmse[path]}
+parse_manifest_file() {
+  local arch=$(uname -m)
+  local ctr=0
 
-# Build EIF for KMS demo
-docker build --target ${kmse[target]} -t ${kmse[image_name]}:${kmse[tag]} ${kmse[path]} -f ${kmse[dockerfile]}
-build_eif ${kmse[image_name]} ${kmse[tag]} ${kmse[eif]}
+  # TODO: Generate jq's query from here.
+  readonly items=(
+    .docker.$arch.file_name
+    .docker.$arch.file_path
+    .docker.$arch.build_path
+    .docker.image_name
+    .docker.image_tag
+    .name
+    .repository
+    .tag
+    .eif_name
+  )
 
-# Build KMS instance tool
-docker build --target ${kmsi[target]} -t ${kmsi[image_name]}:${kmsi[tag]} ${kmsi[path]} -f ${kmsi[dockerfile]}
+  truncate -s 0 .config
+
+  jq -r --arg arch "$arch" \
+    '.docker."'"$arch"'".file_name,
+    .docker."'"$arch"'".file_path,
+    .docker."'"$arch"'".build_path,
+    .docker.image_name,
+    .docker.image_tag,
+    .name, .repository, .tag, .eif_name' \
+    $BUILDER_INSTANCE_ENCLAVE_MANIFEST | \
+    while IFS= read -r value ; \
+      do
+        local item=${items[$ctr]:1}
+        [[ "null" = "$value" ]] && {
+          say_err "Manifest file must include item: $item!"
+          return $FAILURE
+        }
+        item=$(echo ${item/".$arch"/""})
+        item=$(echo ${item/"."/"_"})
+        echo "export MANIFEST_${item^^}=\"$value\"" >> .config
+        let "ctr=ctr+1"
+      done
+}
+
+main() {
+  [[ -f $BUILDER_INSTANCE_ENCLAVE_MANIFEST ]] || {
+    die "No enclave manifest file found!" \
+    "Please make sure enclave_manifest.json" \
+    "exists in the project directory."
+  }
+
+  parse_manifest_file || {
+    die "Invalid enclave manifest file! Aborting..."
+  }
+
+  source .config
+  say "---- Using config: ----"
+  cat .config
+  say "-----------------------"
+
+  clone_repository $MANIFEST_REPOSITORY $MANIFEST_NAME $MANIFEST_TAG || {
+    die "Error while cloning repository of $MANIFEST_NAME!"
+  }
+
+  ls -la "$MANIFEST_NAME/$MANIFEST_DOCKER_FILE_PATH/$MANIFEST_DOCKER_FILE_NAME"
+
+  docker build -t $MANIFEST_DOCKER_IMAGE_NAME:$MANIFEST_DOCKER_IMAGE_TAG \
+    -f $MANIFEST_NAME/$MANIFEST_DOCKER_FILE_PATH/$MANIFEST_DOCKER_FILE_NAME \
+    $MANIFEST_NAME/$MANIFEST_DOCKER_BUILD_PATH || {
+      die "Cannot build docker image $MANIFEST_DOCKER_IMAGE_NAME!"
+    }
+
+  build_eif $MANIFEST_DOCKER_IMAGE_NAME $MANIFEST_DOCKER_IMAGE_TAG \
+    $MANIFEST_EIF_NAME || die "Cannot build eif file!"
+}
+
+main

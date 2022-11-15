@@ -1,0 +1,24 @@
+{
+    "name" : "kms-example",
+    "repository" : "https://github.com/aws/aws-nitro-enclaves-sdk-c.git",
+    "tag" : "v0.3.1",
+    "docker" : {
+        "x86_64" : {
+            "file_path" : "containers",
+            "file_name" : "Dockerfile.al2",
+            "build_path" : ""
+        },
+        "aarch64" : {
+            "file_path" : "containers",
+            "file_name" : "Dockerfile.al2",
+            "build_path" : ""
+        },
+        "image_name": "ne-build-kms",
+        "image_tag": "1.0"
+    },
+    "eif_name" : "kmstool.eif",
+    "exports" : [
+        "/usr/bin/kmstool_instance",
+        "/usr/lib64/libnsm.so"
+    ]
+}
