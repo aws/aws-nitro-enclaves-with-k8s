@@ -1,4 +1,7 @@
-*.eif
-*.so
+.config.ne.k8s.ctl
+.setup.ne.k8s.ctl
 kmstool*
 
+*.eif
+*.so
+*.yaml

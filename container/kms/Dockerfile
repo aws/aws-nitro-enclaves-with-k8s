@@ -12,6 +12,5 @@ COPY bin/kmstool_instance          /kmstool_instance
 COPY bin/libnsm.so                 /usr/lib64/libnsm.so
 COPY kms/test-enclave-policy.json  /home/test-enclave-policy.json
 COPY kms/run.sh                    /home/run.sh
-COPY kms/vsock-proxy.yaml          /etc/nitro_enclaves/vsock-proxy.yaml
 
 CMD ["/home/run.sh"]

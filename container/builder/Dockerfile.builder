@@ -9,8 +9,6 @@ RUN yum upgrade -y && \
 
 WORKDIR /home
 
-COPY hello hello
-COPY kms kms
 COPY builder/run.sh run.sh
 
-CMD ["/home/run.sh"]
+CMD ["bash", "-x", "/home/run.sh"]

@@ -1,0 +1,346 @@
+#!/bin/bash
+# Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+MY_VERSION="0.1"
+MY_NAME="ne-k8s-ctl"
+MY_DESC="AWS Nitro Enclaves with K8s utility tool"
+
+source "$(dirname $(realpath $0))/scripts/common.sh"
+
+# Configuration items
+CONFIG_NAMES=(region instance_type eks_cluster_name eks_worker_node_name k8s_version)
+
+# Utility functions and definitions
+source "$SCRIPTS_DIR/utils.sh"
+
+# Scripts
+readonly CREATE_LAUNCH_TEMPLATE="00_create_launch_template.sh"
+readonly CREATE_EKS_CLUSTER="01_create_eks_cluster.sh"
+readonly ENABLE_DEVICE_PLUGIN="02_enable_device_plugin.sh"
+readonly BUILD_ENCLAVE_APPS="03_build_enclave_apps.sh"
+readonly BUILD_IMAGE="04_build_image.sh"
+readonly PUSH_IMAGE="05_push_image.sh"
+readonly RUN_POD="06_run_pod.sh"
+readonly DESCRIBE_NE_APP="07_describe_ne_app.sh"
+readonly STOP_POD="08_stop_pod.sh"
+readonly CLEANUP_RESOURCES="99_cleanup_resources.sh"
+
+USAGE="\
+$MY_NAME v$MY_VERSION - $MY_DESC
+Usage: $(basename "$0") <command> [arguments]
+
+Commands:
+    configure            Configures demo settings.
+        --file               The file containing the settings for configuration. (i.e. settings.json)
+
+    setup                This high-level command creates an enclave aware EKS cluster.
+                          - Sets up a simple Enclave aware EC2 Launch Template
+                          - Launches an EKS cluster with a node-group based on the configuration
+                          - Installs Nitro Enclaves Device plugin as a daemonset
+                          - Enables Nitro Enclaves Kubernetes device plugin.
+
+    build                Builds a Nitro Enclave based application for deployment.
+        --image             The image name
+
+    push                 Pushes containerized Nitro Enclave application to a remote repository.
+                         This command creates a repository under your private ECR registry if it is not
+                         created already.
+        --image             The image name
+
+    run                  Deploys a Nitro Enclaves with K8s example application.
+        --image	            The image name
+
+    describe	        Describes a Nitro Enclaves application. If the Nitro Enclave is
+                        in debug-mode, it shall fetch the Nitro Enclave console
+        --image             The ECR image previously deployed and running.
+
+    stop                Destroys the Nitro Enclaves application deployed via the 'run' command
+        --image		    The ECR image previously deployed and running.
+
+    cleanup	            Cleans up all the demo resources previously created via the 'setup' command
+        --force	        Ignores errors and force cleans all resources and demo configuration.
+"
+
+# Validate number of arguments given to a function.
+#
+validate_arg_count() {
+  if [ "$1" -ne "$2" ]; then
+      die "Invalid arguments. Please use \`$MY_NAME --help\` for help."
+  fi
+}
+
+# Print usage
+#
+cmd_help() {
+  say "$USAGE"
+}
+
+# Ensure eksctl and kubectl are available on this deployment machine
+ensure_deps() {
+  which eksctl > /dev/null 2>&1
+  ok_or_die "eksctl not found. Aborting." \
+      "Please make sure you have eksctl installed. For more information, see" \
+      "https://docs.aws.amazon.com/eks/latest/userguide/getting-started.html."
+
+  which kubectl > /dev/null 2>&1
+  ok_or_die "kubectl not found. Aborting." \
+      "Please make sure you have kubectl installed. For more information, see" \
+      "https://docs.aws.amazon.com/eks/latest/userguide/getting-started.html."
+
+  which docker > /dev/null 2>&1
+  ok_or_die "docker not found. Aborting." \
+      "Please make sure you have docker installed. For more information, see" \
+      "https://docs.docker.com/desktop/install/linux-install"
+
+  which jq > /dev/null 2>&1
+  ok_or_die "jq not found. Aborting." \
+  "Please make sure you have jq package installed."
+}
+
+exec_subscript() {
+  source "$1"
+  shift
+  main "$@"
+}
+
+apply_configuration() {
+  local settings=$1
+  local json_name=$2
+  local ret
+
+  truncate -s 0 "$WORKING_DIR/$FILE_CONFIGURATION"; ret=$?
+
+  [[ $ret -eq 0 ]] && {
+    for item in "${CONFIG_NAMES[@]}"
+    do
+      local value
+      value=$(echo "$settings" | jq -r ".$item"); ret=$?
+      [[ "$value" = "null" ]] && {
+        say_err "$item value is not set in the $json_name file!";
+        ret=$FAILURE;
+        rm -f "$WORKING_DIR/$FILE_CONFIGURATION"
+        break
+      }
+      echo "CONFIG_${item^^}=\"$value\"" >> "$WORKING_DIR/$FILE_CONFIGURATION"
+    done
+  }
+
+  return $ret
+}
+
+try_create_setup_uuid() {
+  local uuid_pattern='^\{?[A-Z0-9a-z]{8}-[A-Z0-9a-z]{4}-[A-Z0-9a-z]{4}-[A-Z0-9a-z]{4}-[A-Z0-9a-z]{12}\}?$'
+  CONFIG_SETUP_UUID=""
+
+  # Try loading the UUID from file.
+  [[ -f $WORKING_DIR/$FILE_SETUP_ID ]] && { CONFIG_SETUP_UUID=$(<"$WORKING_DIR/$FILE_SETUP_ID"); }
+
+  [[ "${CONFIG_SETUP_UUID}" != "" ]] || {
+    say "Setup UUID doesn't exist. Creating one..."
+    CONFIG_SETUP_UUID=$(<"/proc/sys/kernel/random/uuid")
+  }
+
+  # Check if the UUID is valid.
+  [[ $CONFIG_SETUP_UUID =~ $uuid_pattern ]] || {
+    die "Your existing configuration seems corrupted!" \
+      "Run './$MY_NAME cleanup' to clean invalid setup configuration" \
+      "and try restarting demo setup. If you already created some resources, you" \
+      "need remove them manually."
+  }
+
+  echo "$CONFIG_SETUP_UUID" > "$WORKING_DIR/$FILE_SETUP_ID"
+  ok_or_die "Cannot create session UUID file!" \
+      "Please ensure that you have write access to the project folder."
+  say "Using setup UUID: $CONFIG_SETUP_UUID"
+}
+
+try_load_configuration() {
+  [[ -f "$WORKING_DIR/$FILE_CONFIGURATION" ]] && {
+    source "$WORKING_DIR/$FILE_CONFIGURATION"
+
+    for item in "${CONFIG_NAMES[@]}"
+    do
+      local var_name="CONFIG_${item^^}"
+      local value=${!var_name}
+      [[ $value = "" || $value = "null" ]] && {
+        say_warn "The configuration seems corrupted! Ignoring existing configuration..."
+        rm -f "$WORKING_DIR/$FILE_CONFIGURATION"
+        return
+      }
+    done
+  }
+
+  [[ -f "$WORKING_DIR/$FILE_CONFIGURATION" ]] && \
+      CONFIG_SETUP_UUID=$(<"$WORKING_DIR/$FILE_SETUP_ID");
+}
+
+cmd_configure() {
+  validate_arg_count $# 2
+
+  while [[ "$#" -gt 0 ]]; do
+    case $1 in
+      --file)
+        [ -f "$WORKING_DIR/$FILE_CONFIGURATION" ] && {
+          say_warn "Project settings have already been configured." \
+            "To apply new settings, please clean up the resources first" \
+            "and try again."
+          exit 0
+        }
+        settings_file="$2"; shift ;;
+      *) cmd_help; die "Invalid argument: $1. Please use \`$0 help\` for help.";;
+    esac
+    shift
+  done
+
+  local settings
+  settings=$(cat "$settings_file" 2> /dev/null)
+  ok_or_die "Cannot open the settings file: $settings_file"
+
+  echo "$settings" | jq '.' 2>&1 > /dev/null
+  ok_or_die "Cannot parse the settings file."
+
+  apply_configuration "$settings" "$settings_file"
+  ok_or_die "Cannot create configuration from $settings_file!"
+
+  say "Configuration finished successfully."
+}
+
+cmd_setup() {
+  validate_arg_count $# 0
+
+  # Create a setup uuid. Load if it already exists.
+  try_create_setup_uuid
+
+  say "Running setup..."
+
+  # Nitro Enclave Launch Template
+  exec_subscript "$SCRIPTS_DIR/$CREATE_LAUNCH_TEMPLATE"
+  ok_or_die "Cannot create EC2 Launch Template."
+
+  # EKS Cluster
+  exec_subscript "$SCRIPTS_DIR/$CREATE_EKS_CLUSTER"
+  ok_or_die "Cannot create EKS Cluster."
+
+  # Enable Device Plugin
+  exec_subscript "$SCRIPTS_DIR/$ENABLE_DEVICE_PLUGIN"
+  ok_or_die "Error while enabling the device plugin."
+
+  say "Done."
+}
+
+cmd_build() {
+  validate_arg_count $# 2
+
+  case $1 in
+    --image)
+      exec_subscript "$SCRIPTS_DIR/$BUILD_ENCLAVE_APPS" "$2"
+      ok_or_die "Cannot build enclave applications for $2!"
+
+      exec_subscript "$SCRIPTS_DIR/$BUILD_IMAGE" "$2"
+      ok_or_die "Cannot build docker image for $2!"
+      ;;
+    *)
+      die "Invalid arguments. Please use \`$0 help\` for help."
+  esac
+}
+
+cmd_push() {
+  validate_arg_count $# 2
+
+  case $1 in
+    --image)
+      exec_subscript "$SCRIPTS_DIR/$PUSH_IMAGE" "$2"
+      ok_or_die "Cannot push docker image for $2!"
+      ;;
+    *)
+      die "Invalid arguments. Please use \`$0 help\` for help."
+  esac
+}
+
+cmd_run() {
+  validate_arg_count $# 2
+
+  case $1 in
+    --image)
+      exec_subscript "$SCRIPTS_DIR/$RUN_POD" "$2"
+      ok_or_die "Error while running application!"
+      ;;
+    *)
+      die "Invalid arguments. Please use \`$0 help\` for help."
+  esac
+}
+
+cmd_stop() {
+  validate_arg_count $# 2
+
+  case $1 in
+    --image)
+      exec_subscript "$SCRIPTS_DIR/$STOP_POD" "$2"
+      ok_or_die "Error while stopping the application!"
+      ;;
+    *)
+      die "Invalid arguments. Please use \`$0 help\` for help."
+  esac
+}
+
+cmd_describe() {
+  validate_arg_count $# 2
+
+  case $1 in
+    --image)
+      exec_subscript "$SCRIPTS_DIR/$DESCRIBE_NE_APP" "$2"
+      ok_or_die "Error while describing application!"
+      ;;
+    *)
+      die "Invalid arguments. Please use \`$0 help\` for help."
+  esac
+}
+
+cmd_cleanup() {
+  validate_arg_count $# 1
+  FLAG_IGNORE_ERRORS=false
+
+  case $1 in
+    --force)
+      FLAG_IGNORE_ERRORS=true
+      ;;
+    *)
+  esac
+
+  exec_subscript "$SCRIPTS_DIR/$CLEANUP_RESOURCES"
+  ok_or_die "Cannot clean resources due to previous errors."
+}
+
+main() {
+  if [ "$#" -eq 0 ]; then
+    cmd_help
+    exit 1
+  fi
+
+  # Ensure dependencies
+  ensure_deps
+  # Try loading applied settings.
+  try_load_configuration
+
+  local cmd="$1"
+  case "$1" in
+   -h|--help)
+       cmd_help
+       exit 1
+       ;;
+   -c|configure)
+       shift
+       cmd_configure "$@"
+       ;;
+   *)
+       declare -f "cmd_$cmd" > /dev/null
+       ok_or_die "Unknown command: $1. Please use \`$MY_NAME --help\` for help."
+       [[ ! -f $WORKING_DIR/$FILE_CONFIGURATION ]] && \
+           die "The demo hasn't been configured yet. Please use \`$MY_NAME --help\` to know how to configure."
+       cmd_"$@"
+       ;;
+  esac
+}
+
+main "${@}"
