@@ -178,6 +178,9 @@ try_load_configuration() {
 cmd_configure() {
   validate_arg_count $# 2
 
+  # Create a setup uuid. Load if it already exists.
+  try_create_setup_uuid
+
   while [[ "$#" -gt 0 ]]; do
     case $1 in
       --file)
@@ -208,9 +211,6 @@ cmd_configure() {
 
 cmd_setup() {
   validate_arg_count $# 0
-
-  # Create a setup uuid. Load if it already exists.
-  try_create_setup_uuid
 
   say "Running setup..."
 
