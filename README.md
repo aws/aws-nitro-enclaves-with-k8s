@@ -1,14 +1,13 @@
 # aws-nitro-enclaves-with-k8s
 
-Welcome to aws-nitro-enclaves-with-k8s! This hands-on guide briefly explains how to run `Nitro Enclaves` with
-[Amazon Elastic Kubernetes Service (EKS)](https://aws.amazon.com/eks/).
+This guide explains how to run `Nitro Enclaves` with [Amazon Elastic Kubernetes Service (EKS)](https://aws.amazon.com/eks/).
 
 ## Prerequisites
 
-This guide assumes that you have already created your environment to manage an EKS cluster. If not, please check out
+This guide assumes that you have already created your environment to manage an EKS cluster. If not, please review
 [Getting started with Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/getting-started.html) user guide.
 
-Additionally, **docker** and **jq** need to be installed on your system. <br />
+Additionally, **bash**, **docker** and **[jq](https://stedolan.github.io/jq/download/)** (*a command-line JSON processor*) need to be installed on your system. <br />
 
 ## Getting started
 
@@ -16,13 +15,12 @@ This repository contains two example enclave applications:
 - [hello](https://github.com/aws/aws-nitro-enclaves-cli/tree/main/examples/x86_64/hello): A simple hello world application.
 - [kms](https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/docs/kmstool.md): A small example application built with aws-nitro-enclaves-sdk-c that is able to connect to KMS and decrypt an encrypted KMS message.
 
-We will build these enclave applications in the following steps and have them run in a **K8s pod**. This hands-on guide is also extendible so that you can quickly try your own enclave application
-in an EKS cluster. <br />
+We will build these enclave applications in the following steps and have them run in a **Kubernetes** [pod](https://kubernetes.io/docs/concepts/workloads/pods/).
 
 ## Using this repository
 
-This repository contains a practical tool called **ne-k8s-ctl**. With the help of it, you can easily build and deploy your enclave apps. We will be using **ne-k8s-ctl** tool along this tutorial.
-To add the tool to your **$PATH** variable, use:
+This repository contains a tool called **ne-k8s-ctl** that you can use to build and deploy your enclave apps. We will be using **ne-k8s-ctl** tool along this tutorial. To add the tool to your **$PATH** variable, use:
+
 ```
 source env.sh
 ```
@@ -51,7 +49,12 @@ The default settings for **ne-k8s-ctl** are stored in **settings.json**. The con
 ne-k8s-ctl configure --file settings.json
 ```
 
-After running this command, the tool is now configured and ready for further steps.
+After running this command, the tool confirms successful configuration like below
+```
+[ne-k8s-ctl] Configuration finished successfully.
+```
+
+and becomes ready for further steps.
 
 <br />
 
@@ -65,9 +68,7 @@ This high-level command consists of three internal steps:
 - **Create a launch template**: This helps us to create Nitro Enclaves-enabled EC2 instances.
 - **Create an EKS Cluster**: Sets up a single-node EKS cluster. The launch template created previously is used in this step. Bear in mind that cluster creation process takes **15-20** minutes.
 - **Enable [Nitro Enclaves K8s Device Plugin](https://github.com/aws/aws-nitro-enclaves-k8s-device-plugin)**: This plugin helps **Kubernetes** pods to safely access Nitro Enclaves device driver.
-    As part of this step, the plugin is deployed as a **daemonset** to the cluster.
-
-If the command fails before completing, It safe to call it multiple times. The command resumes from where it left off.
+    As part of this step, the plugin is deployed as a **[daemonset](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/)** to the cluster.
 
 <br />
 
@@ -90,7 +91,7 @@ As an important note, the build system builds an EIF file if it does not already
 
 <br />
 
-4) **Push hello image to a docker repository:**:
+4) **Push hello image to a docker repository**:
 In the following steps, EKS will need to pull our image from a docker repository. We will be using [Amazon Elastic Container Registry (ECR)](https://aws.amazon.com/ecr/) for this purpose.
 
 ```
@@ -112,16 +113,42 @@ to deploy and run your application in the EKS cluster. As an outcome of this scr
 <br />
 
 6) **Check the logs**:
+To get logs of the hello enclave application, use:
 ```
 ne-k8s-ctl describe --image hello
 ```
-This command not only shows you the application logs but also give some helpful information about the current status of the **Kubernetes** pod. We have already seen that the **hello** application is running. This time, we will be looking into a more sophisticated example.
+After successful execution of this command, you will see output like this below. The application keeps printing "Hello from the enclave side!" message every **5** seconds.
 
-<br />
+```
+[   1] Hello from the enclave side!
+[   2] Hello from the enclave side!
+[   3] Hello from the enclave side!
+[   4] Hello from the enclave side!
+[   5] Hello from the enclave side!
+```
 
-7) **Build and run KMS example**: KMS Tool is a small example application for aws-nitro-enclaves-sdk-c that is able to connect to KMS and decrypt an encrypted KMS message. For this application, the user would be required to create a role which is associated with the EC2 instance that has permissions to access the KMS service in order to create a key, encrypt a message and decrypt the message inside the enclave. In EKS, we already have a role associated with the instance but those permissions do not apply to the **Kubernetes** containers. In order to resolve this, we require a service account that has all the required permissions.
+This command not only shows you the application logs but also give some helpful information about the current status of the **Kubernetes** pod. 
 
-All the preliminary steps described above will be handled by **ne-k8s-ctl** tool. Please follow the similar steps as you did for the **hello** application.
+7) **Stopping the application**: Use
+```
+ne-k8s-ctl describe --stop hello
+```
+to stop the application. After running this command, you will see the message below returned from the cluster.
+```
+pod "hello" deleted
+```
+
+We have already seen that the **hello** application is running. This time, we will be looking into a more sophisticated example.
+
+## Building and running the KMS example
+
+[KMS Tool](https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/docs/kmstool.md) is a small example application for aws-nitro-enclaves-sdk-c that is able to connect to KMS and decrypt an encrypted KMS message. For this application, the user would be required to create a role which is associated with the EC2 instance that has permissions to access the KMS service in order to create a key, encrypt a message and decrypt the message inside the enclave. In EKS, we already have a role associated with the instance but those permissions do not apply to the **Kubernetes** containers. In order to resolve this, we require a service account that has all the required permissions.
+
+All the preliminary steps described above will be handled by **ne-k8s-ctl** tool.
+
+As an important note, AWS currently supports one enclave per EC2 instance. Before moving on, please ensure you stopped the **hello** application.
+
+To run KMS example, please follow the similar steps below as you did for the **hello** application.
 
 ```
 ne-k8s-ctl build    --image kms
@@ -129,8 +156,6 @@ ne-k8s-ctl run      --image kms
 ne-k8s-ctl push     --image kms
 ne-k8s-ctl describe --image kms
 ```
-
-<br />
 
 ## Creating your own example application
 
@@ -151,4 +176,4 @@ ne-k8s-ctl cleanup
 ```
 
 ## Closing thoughts
-The hands-on examples in this repository demonstrate how to run Nitro Enclaves with EKS. We hope that you find this tutorial helpful and easy to follow.
+The hands-on examples in this repository demonstrate how to run Nitro Enclaves with EKS.
