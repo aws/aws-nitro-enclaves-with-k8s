@@ -47,8 +47,8 @@ spec:
       hostname: $DP_PLUGIN_LABEL
       containers:
       - name: $DP_PLUGIN_LABEL
-        image: 709843417989.dkr.ecr.eu-central-1.amazonaws.com/plugin_devel:latest #TODO: Use public ECR address
-        imagePullPolicy: Always #TODO: Change to IfNotPresent
+        image: public.ecr.aws/aws-nitro-enclaves/aws-nitro-enclaves-k8s-device-plugin:latest
+        imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
