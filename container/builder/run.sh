@@ -58,6 +58,7 @@ parse_manifest_file() {
     .docker.$arch.build_path
     .docker.image_name
     .docker.image_tag
+    .docker.target
     .name
     .repository
     .tag
@@ -72,6 +73,7 @@ parse_manifest_file() {
     .docker."'"$arch"'".build_path,
     .docker.image_name,
     .docker.image_tag,
+    .docker.target,
     .name, .repository, .tag, .eif_name' \
     $BUILDER_INSTANCE_ENCLAVE_MANIFEST | \
     while IFS= read -r value ; \
@@ -108,9 +110,11 @@ main() {
     die "Error while cloning repository of $MANIFEST_NAME!"
   }
 
-  ls -la "$MANIFEST_NAME/$MANIFEST_DOCKER_FILE_PATH/$MANIFEST_DOCKER_FILE_NAME"
+  local target=""
+  [[ "$MANIFEST_DOCKER_TARGET" != "" ]] && { target="--target $MANIFEST_DOCKER_TARGET"; }
 
   docker build -t $MANIFEST_DOCKER_IMAGE_NAME:$MANIFEST_DOCKER_IMAGE_TAG \
+    $target \
     -f $MANIFEST_NAME/$MANIFEST_DOCKER_FILE_PATH/$MANIFEST_DOCKER_FILE_NAME \
     $MANIFEST_NAME/$MANIFEST_DOCKER_BUILD_PATH || {
       die "Cannot build docker image $MANIFEST_DOCKER_IMAGE_NAME!"
