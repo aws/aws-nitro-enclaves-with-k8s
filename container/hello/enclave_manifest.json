@@ -14,7 +14,8 @@
             "build_path" : "examples/aarch/hello"
         },
         "image_name": "ne-build-hello-eif",
-        "image_tag": "1.0"
+        "image_tag": "1.0",
+        "target": ""
     },
     "eif_name" : "hello.eif"
 }

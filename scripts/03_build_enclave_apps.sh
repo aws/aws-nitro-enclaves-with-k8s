@@ -35,9 +35,9 @@ export_files() {
   # Get the name:tag information of the image.
   local apps_image=$(jq -r '.docker | "\(.image_name):\(.image_tag)"' $enclave_manifest)
   # Get exported files list.
-  IFS=', ' read -r -a apps_image_exports <<< $(jq -r '.exports[]' $enclave_manifest 2> /dev/null)
+  local exported_files=($(jq -r '[.exports[]]|join(" ")' $enclave_manifest 2> /dev/null))
 
-  for item in ${apps_image_exports[@]}
+  for item in ${exported_files[@]}
   do
     say "Exporting $item..."
     copy_from_docker_image $apps_image $item $BUILDER_ARTIFACTS_DIR
