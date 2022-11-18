@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 MY_VERSION="0.1"
-MY_NAME="ne-k8s-ctl"
+MY_NAME="nectl"
 MY_DESC="AWS Nitro Enclaves with K8s utility tool"
 
 source "$(dirname $(realpath $0))/scripts/common.sh"
