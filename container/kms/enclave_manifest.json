@@ -1,25 +1,44 @@
 {
-    "name" : "kms-example",
-    "repository" : "https://github.com/aws/aws-nitro-enclaves-sdk-c.git",
-    "tag" : "ne-with-k8s",
-    "docker" : {
-        "x86_64" : {
-            "file_path" : "containers",
-            "file_name" : "Dockerfile.al2",
-            "build_path" : ""
-        },
-        "aarch64" : {
-            "file_path" : "containers",
-            "file_name" : "Dockerfile.al2",
-            "build_path" : ""
-        },
-        "image_name": "ne-build-kms",
-        "image_tag": "1.0",
-        "target": "kmstools-all"
+    "name": "kms-example",
+    "repository": "https://github.com/aws/aws-nitro-enclaves-sdk-c.git",
+    "tag": "ne-with-k8s",
+    "eif": {
+        "name": "kmstool.eif",
+        "docker": {
+            "image_name": "ne-build-kms-enclave",
+            "image_tag": "1.0",
+            "target": "kmstool-enclave",
+            "x86_64": {
+                "file_path": "containers",
+                "file_name": "Dockerfile.al2",
+                "build_path": ""
+            },
+            "aarch64": {
+                "file_path": "containers",
+                "file_name": "Dockerfile.al2",
+                "build_path": ""
+            }
+        }
     },
-    "eif_name" : "kmstool.eif",
-    "exports" : [
-        "/usr/bin/kmstool_instance",
-        "/usr/lib64/libnsm.so"
-    ]
+    "instance": {
+        "docker": {
+            "image_name": "ne-build-kms-instance",
+            "image_tag": "1.0",
+            "target": "kmstool-instance",
+            "x86_64": {
+                "file_path": "containers",
+                "file_name": "Dockerfile.al2",
+                "build_path": ""
+            },
+            "aarch64": {
+                "file_path": "containers",
+                "file_name": "Dockerfile.al2",
+                "build_path": ""
+            }
+        },
+        "exports": [
+            "/kmstool_instance",
+            "/usr/lib64/libnsm.so"
+        ]
+    }
 }

@@ -47,34 +47,32 @@ clone_repository() {
   git clone --depth 1 $repo_addr -b $tag $directory
 }
 
-parse_manifest_file() {
+parse_required_items() {
   local arch=$(uname -m)
   local ctr=0
 
-  # TODO: Generate jq's query from here.
   readonly items=(
-    .docker.$arch.file_name
-    .docker.$arch.file_path
-    .docker.$arch.build_path
-    .docker.image_name
-    .docker.image_tag
-    .docker.target
     .name
     .repository
     .tag
-    .eif_name
+    .eif.name
+    .eif.docker.image_name
+    .eif.docker.image_tag
+    .eif.docker.target
+    .eif.docker.$arch.file_name
+    .eif.docker.$arch.file_path
+    .eif.docker.$arch.build_path
   )
 
-  truncate -s 0 .config
-
   jq -r --arg arch "$arch" \
-    '.docker."'"$arch"'".file_name,
-    .docker."'"$arch"'".file_path,
-    .docker."'"$arch"'".build_path,
-    .docker.image_name,
-    .docker.image_tag,
-    .docker.target,
-    .name, .repository, .tag, .eif_name' \
+    '.name, .repository, .tag,
+    .eif.name,
+    .eif.docker.image_name,
+    .eif.docker.image_tag,
+    .eif.docker.target,
+    .eif.docker."'"$arch"'".file_name,
+    .eif.docker."'"$arch"'".file_path,
+    .eif.docker."'"$arch"'".build_path' \
     $BUILDER_INSTANCE_ENCLAVE_MANIFEST | \
     while IFS= read -r value ; \
       do
@@ -85,9 +83,71 @@ parse_manifest_file() {
         }
         item=$(echo ${item/".$arch"/""})
         item=$(echo ${item/"."/"_"})
+        item=$(echo ${item/"."/"_"})
         echo "export MANIFEST_${item^^}=\"$value\"" >> .config
         let "ctr=ctr+1"
       done
+}
+
+parse_instance_items() {
+  local arch=$(uname -m)
+  local ctr=0
+
+  readonly items=(
+    .instance.docker.image_name
+    .instance.docker.image_tag
+    .instance.docker.target
+    .instance.docker.$arch.file_name
+    .instance.docker.$arch.file_path
+    .instance.docker.$arch.build_path
+  )
+
+  jq -r --arg arch "$arch" \
+   '.instance.docker.image_name,
+    .instance.docker.image_tag,
+    .instance.docker.target,
+    .instance.docker."'"$arch"'".file_name,
+    .instance.docker."'"$arch"'".file_path,
+    .instance.docker."'"$arch"'".build_path' \
+    $BUILDER_INSTANCE_ENCLAVE_MANIFEST | \
+    while IFS= read -r value ; \
+      do
+        local item=${items[$ctr]:1}
+        [[ "null" = "$value" ]] && {
+          say_err "Missing instance application definition: $item!"
+          return $FAILURE
+        }
+        item=$(echo ${item/".$arch"/""})
+        item=$(echo ${item/"."/"_"})
+        item=$(echo ${item/"."/"_"})
+        echo "export MANIFEST_${item^^}=\"$value\"" >> .config
+        let "ctr=ctr+1"
+      done
+}
+
+parse_manifest_file() {
+  truncate -s 0 .config
+  parse_required_items || die "Cannot parse manifest file!"
+  local out=$(jq -r '.instance' $BUILDER_INSTANCE_ENCLAVE_MANIFEST)
+  [[ "$out" != "null" ]] && {
+    # Instance application-related fields are optional. However, once an instance
+    # JSON object is defined, it must include all items required for build.
+    parse_instance_items || "Cannot parse manifest file!"
+  }
+  return $SUCCESS
+}
+
+function all_exported_files_exist() {
+  # Get exported files list.
+  local exported_files=($(jq -r '[.instance.exports[]]|join(" ")' \
+    $BUILDER_INSTANCE_ENCLAVE_MANIFEST 2> /dev/null))
+
+  for exp_file in ${exported_files[@]}
+  do
+    [[ -f "$BUILDER_INSTANCE_OUTPUT_PATH/$(basename $exp_file)" ]] || return $FAILURE;
+  done
+
+  return $SUCCESS
 }
 
 main() {
@@ -106,22 +166,49 @@ main() {
   cat .config
   say "-----------------------"
 
+  all_exported_files_exist; local exp_files_exist=$?
+
+  [[ $exp_files_exist -eq 0 && -f "$BUILDER_INSTANCE_OUTPUT_PATH/$MANIFEST_EIF_NAME" ]] && {
+    say "All enclave application already exist in the $BUILDER_INSTANCE_OUTPUT_PATH folder." \
+        "Skipping build..."
+    return $SUCCESS
+  }
+
   clone_repository $MANIFEST_REPOSITORY $MANIFEST_NAME $MANIFEST_TAG || {
     die "Error while cloning repository of $MANIFEST_NAME!"
   }
 
-  local target=""
-  [[ "$MANIFEST_DOCKER_TARGET" != "" ]] && { target="--target $MANIFEST_DOCKER_TARGET"; }
+  # Build EIF file if it doesn't exist in the bin folder.
+  [[ ! -f "$BUILDER_INSTANCE_OUTPUT_PATH/$MANIFEST_EIF_NAME" ]] && {
+    local target=""
+    [[ "$MANIFEST_EIF_DOCKER_TARGET" != "" ]] && { target="--target $MANIFEST_EIF_DOCKER_TARGET"; }
 
-  docker build -t $MANIFEST_DOCKER_IMAGE_NAME:$MANIFEST_DOCKER_IMAGE_TAG \
-    $target \
-    -f $MANIFEST_NAME/$MANIFEST_DOCKER_FILE_PATH/$MANIFEST_DOCKER_FILE_NAME \
-    $MANIFEST_NAME/$MANIFEST_DOCKER_BUILD_PATH || {
-      die "Cannot build docker image $MANIFEST_DOCKER_IMAGE_NAME!"
-    }
+    # Build EIF File
+    docker build -t $MANIFEST_EIF_DOCKER_IMAGE_NAME:$MANIFEST_EIF_DOCKER_IMAGE_TAG \
+      $target \
+      -f $MANIFEST_NAME/$MANIFEST_EIF_DOCKER_FILE_PATH/$MANIFEST_EIF_DOCKER_FILE_NAME \
+      $MANIFEST_NAME/$MANIFEST_EIF_DOCKER_BUILD_PATH || {
+        die "Cannot build docker image $MANIFEST_EIF_DOCKER_IMAGE_NAME!"
+      }
 
-  build_eif $MANIFEST_DOCKER_IMAGE_NAME $MANIFEST_DOCKER_IMAGE_TAG \
-    $MANIFEST_EIF_NAME || die "Cannot build eif file!"
+    build_eif $MANIFEST_EIF_DOCKER_IMAGE_NAME $MANIFEST_EIF_DOCKER_IMAGE_TAG \
+      $MANIFEST_EIF_NAME || die "Cannot build eif file!"
+  }
+
+  # Build instance application if available
+  [[ $exp_files_exist -ne 0 && ! -z $MANIFEST_INSTANCE_DOCKER_IMAGE_NAME ]]  && {
+    target=""
+    [[ "$MANIFEST_INSTANCE_DOCKER_TARGET" != "" ]] && { target="--target $MANIFEST_INSTANCE_DOCKER_TARGET"; }
+
+    docker build -t $MANIFEST_INSTANCE_DOCKER_IMAGE_NAME:$MANIFEST_INSTANCE_DOCKER_IMAGE_TAG \
+      $target \
+      -f $MANIFEST_NAME/$MANIFEST_INSTANCE_DOCKER_FILE_PATH/$MANIFEST_INSTANCE_DOCKER_FILE_NAME \
+      $MANIFEST_NAME/$MANIFEST_INSTANCE_DOCKER_BUILD_PATH || {
+        die "Cannot build docker image $MANIFEST_INSTANCE_DOCKER_IMAGE_NAME!"
+      }
+  }
+
+  return $SUCCESS
 }
 
 main
