@@ -33,9 +33,9 @@ build_enclave_apps() {
 export_files() {
   local enclave_manifest=$1
   # Get the name:tag information of the image.
-  local apps_image=$(jq -r '.docker | "\(.image_name):\(.image_tag)"' $enclave_manifest)
+  local apps_image=$(jq -r '.instance.docker | "\(.image_name):\(.image_tag)"' $enclave_manifest)
   # Get exported files list.
-  local exported_files=($(jq -r '[.exports[]]|join(" ")' $enclave_manifest 2> /dev/null))
+  local exported_files=($(jq -r '[.instance.exports[]]|join(" ")' $enclave_manifest 2> /dev/null))
 
   for exp_file in ${exported_files[@]}
   do
