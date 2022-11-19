@@ -66,7 +66,7 @@ nectl setup
 ```
 This high-level command consists of three internal steps:
 - **Create a launch template**: This helps us to create Nitro Enclaves-enabled EC2 instances.
-- **Create an EKS Cluster**: Sets up a single-node EKS cluster. The launch template created previously is used in this step. Bear in mind that cluster creation process takes **15-20** minutes.
+- **Create an EKS Cluster**: Sets up a single-node EKS cluster. The launch template created previously is used in this step.
 - **Enable [Nitro Enclaves K8s Device Plugin](https://github.com/aws/aws-nitro-enclaves-k8s-device-plugin)**: This plugin helps **Kubernetes** pods to safely access Nitro Enclaves device driver.
     As part of this step, the plugin is deployed as a **[daemonset](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/)** to the cluster.
 
@@ -127,7 +127,7 @@ After successful execution of this command, you will see output like this below.
 [   5] Hello from the enclave side!
 ```
 
-This command not only shows you the application logs but also give some helpful information about the current status of the **Kubernetes** pod. 
+This command not only shows you the application logs but also give some helpful information about the current status of the **Kubernetes** pod.
 
 7) **Stopping the application**: Use
 ```
