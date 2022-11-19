@@ -12,38 +12,47 @@ _create_deployment_file() {
   local repository_uri=$3
 
 readonly file_content=$(cat<<EOF
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: hello
+  name: hello-deployment
 spec:
-  containers:
-    - name: $container_name
-      image: $repo_uri:latest
-      command: ["/home/run.sh"]
-      imagePullPolicy: Always
-      resources:
-        limits:
-          aws.ec2.nitro/nitro_enclaves: "1"
-          hugepages-2Mi: 512Mi
-          memory: 2Gi
-          cpu: 250m
-        requests:
-          aws.ec2.nitro/nitro_enclaves: "1"
-          hugepages-2Mi: 512Mi
-      volumeMounts:
-      - mountPath: /dev/hugepages
-        name: hugepage
-        readOnly: false
-  tolerations:
-  - effect: NoSchedule
-    operator: Exists
-  - effect: NoExecute
-    operator: Exists
-  volumes:
-    - name: hugepage
-      emptyDir:
-        medium: HugePages
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello
+  template:
+    metadata:
+      labels:
+        app: hello
+    spec:
+      containers:
+      - name: $container_name
+        image: $repository_uri:latest
+        command: ["/home/run.sh"]
+        imagePullPolicy: Always
+        resources:
+          limits:
+            aws.ec2.nitro/nitro_enclaves: "1"
+            hugepages-2Mi: 512Mi
+            memory: 2Gi
+            cpu: 250m
+          requests:
+            aws.ec2.nitro/nitro_enclaves: "1"
+            hugepages-2Mi: 512Mi
+        volumeMounts:
+        - mountPath: /dev/hugepages
+          name: hugepage
+          readOnly: false
+      tolerations:
+      - effect: NoSchedule
+        operator: Exists
+      - effect: NoExecute
+        operator: Exists
+      volumes:
+        - name: hugepage
+          emptyDir:
+            medium: HugePages
 EOF
 )
   # Create deployment yaml file

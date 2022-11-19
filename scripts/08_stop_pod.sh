@@ -7,14 +7,12 @@
 ####################################################
 
 main() {
-  local project_name=$1
-  local repo_name="$project_name-$CONFIG_SETUP_UUID"
-  local repo_uri=$(get_repository_uri $repo_name)
-  local podspec_file="$WORKING_DIR/$project_name_podspec.yaml"
+  local tool_image_name=$1
+  local deployment_file="$WORKING_DIR/${tool_image_name}_deployment.yaml"
 
-  kubectl delete -f $podspec_file || {
-    say_err "Error while stopping application $project_name!"
+  kubectl delete -f $deployment_file || {
+    say_err "Error while stopping application $tool_image_name!"
   }
 
-  trigger_event $project_name on_stop
+  trigger_event $tool_image_name on_stop
 }
