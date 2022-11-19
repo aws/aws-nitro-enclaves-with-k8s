@@ -2,6 +2,65 @@
 # Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+####################################################
+# Helper Functions
+####################################################
+
+_create_deployment_file() {
+  local filename=$1
+  local container_name=$2
+  local repository_uri=$3
+
+readonly file_content=$(cat<<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kms
+spec:
+  serviceAccountName: ne-service-account
+  containers:
+    - name: $container_name
+      image: $repository_uri:latest
+      command: ["/home/run.sh"]
+      imagePullPolicy: Always
+      resources:
+        limits:
+          aws.ec2.nitro/nitro_enclaves: "1"
+          hugepages-2Mi: 564Mi
+          memory: 2Gi
+          cpu: 250m
+        requests:
+          aws.ec2.nitro/nitro_enclaves: "1"
+          hugepages-2Mi: 564Mi
+      volumeMounts:
+      - mountPath: /dev/hugepages
+        name: hugepage
+        readOnly: false
+  tolerations:
+  - effect: NoSchedule
+    operator: Exists
+  - effect: NoExecute
+    operator: Exists
+  volumes:
+    - name: hugepage
+      emptyDir:
+        medium: HugePages
+EOF
+)
+
+  # Create deployment yaml file
+  #
+  reset_ifs
+  printf '%s\n' $file_content > $filename || return $FAILURE
+  restore_ifs
+
+  return $SUCCESS
+}
+
+####################################################
+# Events
+####################################################
+
 on_run() {
   # Create service account
   eksctl utils associate-iam-oidc-provider \
@@ -41,54 +100,23 @@ on_run() {
   return $SUCCESS
 }
 
-on_podspec_requested() {
-  local container_name=$1
-  local repo_uri=$2
-  local podspec_file=$3
+on_file_requested() {
+  local retval=$SUCCESS
+  local req_file=$1
 
-pod_spec=$(cat<<EOF
-apiVersion: v1
-kind: Pod
-metadata:
-  name: $container_name
-spec:
-  serviceAccountName: ne-service-account
-  containers:
-    - name: $container_name
-      image: $repo_uri:latest
-      command: ["/home/run.sh"]
-      imagePullPolicy: Always
-      resources:
-        limits:
-          aws.ec2.nitro/nitro_enclaves: "1"
-          hugepages-2Mi: 564Mi
-          memory: 2Gi
-          cpu: 250m
-        requests:
-          aws.ec2.nitro/nitro_enclaves: "1"
-          hugepages-2Mi: 564Mi
-      volumeMounts:
-      - mountPath: /dev/hugepages
-        name: hugepage
-        readOnly: false
-  tolerations:
-  - effect: NoSchedule
-    operator: Exists
-  - effect: NoExecute
-    operator: Exists
-  volumes:
-    - name: hugepage
-      emptyDir:
-        medium: HugePages
-EOF
-)
+  case $(basename $req_file) in
+  "kms_deployment.yaml")
+    local container_name=$2;
+    local repository_uri=$3;
+    _create_deployment_file "$req_file" "$2" "$3"; retval=$?;
+    ;;
+  *)
+    say_err "${FUNCNAME[0]}: Requested file $1 is unknown."
+    retval=$FAILURE
+    ;;
+  esac
 
-  # Create PodSpec yaml file
-  reset_ifs
-  printf '%s\n' $pod_spec > $podspec_file || return $FAILURE
-  restore_ifs
-
-  return $SUCCESS
+  return $retval
 }
 
 on_stop() {

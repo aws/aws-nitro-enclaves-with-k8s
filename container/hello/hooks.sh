@@ -2,20 +2,20 @@
 # Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-on_run() {
-  return $SUCCESS
-}
+####################################################
+# Helper Functions
+####################################################
 
-on_podspec_requested() {
-  local container_name=$1
-  local repo_uri=$2
-  local podspec_file=$3
+_create_deployment_file() {
+  local filename=$1
+  local container_name=$2
+  local repository_uri=$3
 
-readonly pod_spec=$(cat<<EOF
+readonly file_content=$(cat<<EOF
 apiVersion: v1
 kind: Pod
 metadata:
-  name: $container_name
+  name: hello
 spec:
   containers:
     - name: $container_name
@@ -46,11 +46,40 @@ spec:
         medium: HugePages
 EOF
 )
+  # Create deployment yaml file
+  #
   reset_ifs
-  printf '%s\n' $pod_spec > $podspec_file || return $FAILURE
+  printf '%s\n' $file_content > $filename || return $FAILURE
   restore_ifs
 
   return $SUCCESS
+}
+
+####################################################
+# Events
+####################################################
+
+on_run() {
+  return $SUCCESS
+}
+
+on_file_requested() {
+  local retval=$SUCCESS
+  local req_file=$1
+
+  case $(basename $req_file) in
+  "hello_deployment.yaml")
+    local container_name=$2;
+    local repository_uri=$3;
+    _create_deployment_file "$req_file" "$2" "$3"; retval=$?;
+    ;;
+  *)
+    say_err "${FUNCNAME[0]}: Requested file $1 is unknown."
+    retval=$FAILURE
+    ;;
+  esac
+
+  return $retval
 }
 
 on_stop() {

@@ -262,16 +262,29 @@ cmd_push() {
 }
 
 cmd_run() {
-  validate_arg_count $# 2
+  validate_arg_count $# 2 3
 
-  case $1 in
-    --image)
-      exec_subscript "$SCRIPTS_DIR/$RUN_POD" "$2"
-      ok_or_die "Error while running application!"
-      ;;
-    *)
-      die "Invalid arguments. Please use \`$0 help\` for help."
-  esac
+  local image=""
+  local prepare_only=false
+
+  while [[ $# -ge 1 ]]
+  do
+    case $1 in
+      "--image")
+        image=$2;
+        shift;
+        ;;
+      "--prepare-only")
+        prepare_only=true
+        ;;
+      *)
+        die "Invalid arguments. Please use \`$0 help\` for help."
+    esac
+    shift;
+  done
+
+  exec_subscript "$SCRIPTS_DIR/$RUN_POD" "$image" "$prepare_only"
+  ok_or_die "Error while running application!"
 }
 
 cmd_stop() {
