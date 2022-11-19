@@ -8,7 +8,7 @@
 
 delete_file() {
  say "Deleting $1..."
- rm -f $WORKING_DIR/$1
+ #rm -f $WORKING_DIR/$1
 }
 
 ####################################################
@@ -16,13 +16,14 @@ delete_file() {
 ####################################################
 
 main() {
+  local force_cleanup=$1
   #TODO: Delete the ECR repository
   #TODO: Delete docker images
 
   say "Attempt to delete cluster node group: $CONFIG_EKS_WORKER_NODE_NAME"
 
   eksctl delete nodegroup --cluster=$CONFIG_EKS_CLUSTER_NAME --name=$CONFIG_EKS_WORKER_NODE_NAME \
-    --region $CONFIG_REGION || $FLAG_IGNORE_ERRORS || {
+    --region $CONFIG_REGION || $force_cleanup || {
       say_err "Cluster node group cannot be deleted."
       return $FAILURE
     }
@@ -30,7 +31,7 @@ main() {
   say "Attempt to delete cluster: $CONFIG_EKS_WORKER_NODE_NAME"
 
   eksctl delete cluster --name $CONFIG_EKS_CLUSTER_NAME \
-    --region $CONFIG_REGION || $FLAG_IGNORE_ERRORS || {
+    --region $CONFIG_REGION || $force_cleanup || {
       say_err "Cluster cannot be deleted."
       return $FAILURE
     }
@@ -41,8 +42,8 @@ main() {
   say "Attempt to delete launch template: $lt_name"
 
   [[ "$lt_id" != "" ]] && {
-    awscli ec2 delete-launch-template --launch-template-id $lt_id || $FLAG_IGNORE_ERRORS || \
-      --region $CONFIG_REGION || $FLAG_IGNORE_ERRORS || {
+    awscli ec2 delete-launch-template --launch-template-id $lt_id || $force_cleanup || \
+      --region $CONFIG_REGION || $force_cleanup || {
         say_error "Launch template cannot be deleted."
         return $FAILURE
       }

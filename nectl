@@ -31,32 +31,32 @@ $MY_NAME v$MY_VERSION - $MY_DESC
 Usage: $(basename "$0") <command> [arguments]
 
 Commands:
-    configure            Configures demo settings.
-        --file               The file containing the settings for configuration. (i.e. settings.json)
+    configure           Configures demo settings.
+        --file           The file containing the settings for configuration. (i.e. settings.json)
 
-    setup                This high-level command creates an enclave aware EKS cluster.
-                          - Sets up a simple Enclave aware EC2 Launch Template
-                          - Launches an EKS cluster with a node-group based on the configuration
-                          - Installs Nitro Enclaves Device plugin as a daemonset
-                          - Enables Nitro Enclaves Kubernetes device plugin.
+    setup               This high-level command creates an enclave aware EKS cluster.
+                         - Sets up a simple Enclave aware EC2 Launch Template
+                         - Launches an EKS cluster with a node-group based on the configuration
+                         - Installs Nitro Enclaves Device plugin as a daemonset
+                         - Enables Nitro Enclaves Kubernetes device plugin.
 
-    build                Builds a Nitro Enclave based application for deployment.
-        --image             The image name
+    build               Builds a Nitro Enclave based application for deployment.
+        --image          The image name
 
-    push                 Pushes containerized Nitro Enclave application to a remote repository.
-                         This command creates a repository under your private ECR registry if it is not
-                         created already.
-        --image             The image name
+    push                Pushes containerized Nitro Enclave application to a remote repository.
+                        This command creates a repository under your private ECR registry if it is not
+                        created already.
+        --image          The image name
 
-    run                  Deploys a Nitro Enclaves with K8s example application.
-        --image	            The image name
+    run                 Deploys a Nitro Enclaves with K8s example application.
+        --image	          The image name
 
-    describe	        Describes a Nitro Enclaves application. If the Nitro Enclave is
+    describe	          Describes a Nitro Enclaves application. If the Nitro Enclave is
                         in debug-mode, it shall fetch the Nitro Enclave console
-        --image             The ECR image previously deployed and running.
+        --image           The ECR image previously deployed and running.
 
     stop                Destroys the Nitro Enclaves application deployed via the 'run' command
-        --image		    The ECR image previously deployed and running.
+        --image		        The ECR image previously deployed and running.
 
     cleanup	            Cleans up all the demo resources previously created via the 'setup' command
         --force	        Ignores errors and force cleans all resources and demo configuration.
@@ -65,9 +65,13 @@ Commands:
 # Validate number of arguments given to a function.
 #
 validate_arg_count() {
-  if [ "$1" -ne "$2" ]; then
-      die "Invalid arguments. Please use \`$MY_NAME --help\` for help."
-  fi
+  local arg_count=$1; shift
+  for arg in "$@"
+  do
+    [[ "$arg_count" == "$arg" ]] && { return; }
+  done
+
+  die "Invalid arguments. Please use \`$MY_NAME help\` for help."
 }
 
 # Print usage
@@ -178,23 +182,22 @@ try_load_configuration() {
 cmd_configure() {
   validate_arg_count $# 2
 
+  case $1 in
+    --file)
+      [ -f "$WORKING_DIR/$FILE_CONFIGURATION" ] && {
+        say_warn "Project settings have already been configured." \
+          "To apply new settings, please clean up the resources first" \
+          "and try again."
+        exit 0
+      }
+      settings_file="$2";
+      ;;
+    *)
+      die "Invalid argument: $1. Please use \`$0 help\` for help.";;
+  esac
+
   # Create a setup uuid. Load if it already exists.
   try_create_setup_uuid
-
-  while [[ "$#" -gt 0 ]]; do
-    case $1 in
-      --file)
-        [ -f "$WORKING_DIR/$FILE_CONFIGURATION" ] && {
-          say_warn "Project settings have already been configured." \
-            "To apply new settings, please clean up the resources first" \
-            "and try again."
-          exit 0
-        }
-        settings_file="$2"; shift ;;
-      *) cmd_help; die "Invalid argument: $1. Please use \`$0 help\` for help.";;
-    esac
-    shift
-  done
 
   local settings
   settings=$(cat "$settings_file" 2> /dev/null)
@@ -298,17 +301,20 @@ cmd_describe() {
 }
 
 cmd_cleanup() {
-  validate_arg_count $# 1
-  FLAG_IGNORE_ERRORS=false
+  validate_arg_count $# 0 1
+  local ignore_errors=false
 
   case $1 in
     --force)
-      FLAG_IGNORE_ERRORS=true
+      ignore_errors=true
+      ;;
+    "")
       ;;
     *)
+      die "Invalid arguments. Please use \`$0 help\` for help."
   esac
 
-  exec_subscript "$SCRIPTS_DIR/$CLEANUP_RESOURCES"
+  exec_subscript "$SCRIPTS_DIR/$CLEANUP_RESOURCES" "$ignore_errors"
   ok_or_die "Cannot clean resources due to previous errors."
 }
 
@@ -325,7 +331,7 @@ main() {
 
   local cmd="$1"
   case "$1" in
-   -h|--help)
+   -h|help)
        cmd_help
        exit 1
        ;;
@@ -335,9 +341,9 @@ main() {
        ;;
    *)
        declare -f "cmd_$cmd" > /dev/null
-       ok_or_die "Unknown command: $1. Please use \`$MY_NAME --help\` for help."
+       ok_or_die "Unknown command: $1. Please use \`$MY_NAME help\` for help."
        [[ ! -f $WORKING_DIR/$FILE_CONFIGURATION ]] && \
-           die "The demo hasn't been configured yet. Please use \`$MY_NAME --help\` to know how to configure."
+           die "The demo hasn't been configured yet. Please use \`$MY_NAME help\` to know how to configure."
        cmd_"$@"
        ;;
   esac
