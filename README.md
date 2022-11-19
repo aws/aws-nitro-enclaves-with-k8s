@@ -12,10 +12,10 @@ Additionally, **bash**, **docker** and **[jq](https://stedolan.github.io/jq/down
 ## Getting started
 
 This repository contains two example enclave applications:
-- [hello](https://github.com/aws/aws-nitro-enclaves-cli/tree/main/examples/x86_64/hello): A simple hello world application.
-- [kms](https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/docs/kmstool.md): A small example application built with aws-nitro-enclaves-sdk-c that is able to connect to KMS and decrypt an encrypted KMS message.
+- [hello](https://github.com/aws/aws-nitro-enclaves-cli/tree/main/examples/x86_64/hello): A hello world application.
+- [kms](https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/docs/kmstool.md): An example application built with aws-nitro-enclaves-sdk-c that is able to connect to KMS and decrypt an encrypted KMS message.
 
-We will build these enclave applications in the following steps and have them run in a **Kubernetes** [pod](https://kubernetes.io/docs/concepts/workloads/pods/).
+We will build these enclave applications in the following steps and have them run in a **Kubernetes** [deployment](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/).
 
 ## Using this repository
 
@@ -30,7 +30,7 @@ To get some help for the tool, type:
 nectl --help
 ```
 
-The default settings for **nectl** are stored in **settings.json**. The content of this file is shown below. You can change the AWS region, the instance type of the cluster nodes, Kubernetes version, cluster name and node group name if wanted.
+The default settings for **nectl** are stored in **settings.json**. The content of this file is shown below. You can change the AWS region, the instance type of the cluster nodes, **Kubernetes** version, cluster name and node group name if wanted.
 ```
 {
   "region" : "eu-central-1",
@@ -67,7 +67,7 @@ nectl setup
 This high-level command consists of three internal steps:
 - **Create a launch template**: This helps us to create Nitro Enclaves-enabled EC2 instances.
 - **Create an EKS Cluster**: Sets up a single-node EKS cluster. The launch template created previously is used in this step.
-- **Enable [Nitro Enclaves K8s Device Plugin](https://github.com/aws/aws-nitro-enclaves-k8s-device-plugin)**: This plugin helps **Kubernetes** pods to safely access Nitro Enclaves device driver.
+- **Enable [Nitro Enclaves K8s Device Plugin](https://github.com/aws/aws-nitro-enclaves-k8s-device-plugin)**: This plugin helps **Kubernetes** **[pods](https://kubernetes.io/docs/concepts/workloads/pods/)** to safely access Nitro Enclaves device driver.
     As part of this step, the plugin is deployed as a **[daemonset](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/)** to the cluster.
 
 <br />
@@ -103,21 +103,46 @@ For the subsequent uses, the command will always use the previously created repo
 
 <br />
 
-5) **Run hello example as a pod in the cluster**: Use
+5) **Run hello example in the cluster**: Use
 ```
 nectl run --image hello
 ```
 
-to deploy and run your application in the EKS cluster. As an outcome of this script's execution, **hello_pod.yaml** file will also be generated in the working directory so that you can review what kind of **podspec** was generated to run the application.
+This command does pre-initialization (if needed), generates a deployment file and deploy your application in the EKS cluster. Or you might want to use **kubectl** to deploy your applications at this point. To use **kubectl**,
+
+```
+nectl run --image hello --prepare-only
+```
+
+This command behaves similarly like the previous command above without performing deployment. So, to deploy your image:
+```
+kubectl apply -f hello_deployment.yaml
+```
 
 <br />
 
 6) **Check the logs**:
-To get logs of the hello enclave application, use:
+
+We successfully built and have started deploying our application. To check deployment status of the hello application, use
 ```
-nectl describe --image hello
+kubectl get pods --selector app=hello --watch
 ```
-After successful execution of this command, you will see output like this below. The application keeps printing "Hello from the enclave side!" message every **5** seconds.
+
+Deployment time differs for every user, but the command is expected to report a similar output like below after a short while:
+
+```
+NAME                               READY   STATUS              RESTARTS   AGE
+hello-deployment-7bf5d9b79-qv8vm   0/1     Pending             0          2s
+hello-deployment-7bf5d9b79-qv8vm   0/1     Pending             0          27s
+hello-deployment-7bf5d9b79-qv8vm   0/1     ContainerCreating   0          27s
+hello-deployment-7bf5d9b79-qv8vm   1/1     Running             0          30s
+```
+
+When you ensure that the application is running, press "Ctrl + C" to terminate **kubectl**. Now, use the command below to see applications logs:
+```
+kubectl logs <deployment name>
+```
+You can find the `<deployment name>` from your terminal logs. In the sample terminal output above, it was **hello-deployment-7bf5d9b79-qv8vm**. After successful execution of this command, you will see output like this below. The application keeps printing "Hello from the enclave side!" message every **5** seconds.
 
 ```
 [   1] Hello from the enclave side!
@@ -127,16 +152,12 @@ After successful execution of this command, you will see output like this below.
 [   5] Hello from the enclave side!
 ```
 
-This command not only shows you the application logs but also give some helpful information about the current status of the **Kubernetes** pod.
-
 7) **Stopping the application**: Use
 ```
 nectl stop --image hello
 ```
-to stop the application. After running this command, you will see the message below returned from the cluster.
-```
-pod "hello" deleted
-```
+to stop the application. This function not only executes `kubectl -f delete hello_deployment.yaml` in the background, but also uninitalizes
+resources if any were initialized after `nectl run` command.
 
 We have already seen that the **hello** application is running. This time, we will be looking into a more sophisticated example.
 
@@ -151,10 +172,10 @@ As an important note, AWS currently supports one enclave per EC2 instance. Befor
 To run KMS example, please follow the similar steps below as you did for the **hello** application.
 
 ```
-nectl build    --image kms
-nectl push     --image kms
-nectl run      --image kms
-nectl describe --image kms
+nectl build --image kms
+nectl push --image kms
+nectl run --image kms
+kubectl get pods --selector app=kms --watch
 ```
 
 ## Creating your own example application
