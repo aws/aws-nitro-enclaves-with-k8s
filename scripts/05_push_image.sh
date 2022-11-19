@@ -42,7 +42,7 @@ main() {
   local repo_uri=$(get_repository_uri $repo_name)
 
   docker tag $image $repo_uri || {
-    say_err "Canno tag image $image! Please ensure that you built the image!"
+    say_err "Cannot tag image $image! Please ensure that you built the image!"
     return $FAILURE
   }
 

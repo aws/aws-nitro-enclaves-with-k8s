@@ -21,9 +21,8 @@ readonly ENABLE_DEVICE_PLUGIN="02_enable_device_plugin.sh"
 readonly BUILD_ENCLAVE_APPS="03_build_enclave_apps.sh"
 readonly BUILD_IMAGE="04_build_image.sh"
 readonly PUSH_IMAGE="05_push_image.sh"
-readonly RUN_POD="06_run_pod.sh"
-readonly DESCRIBE_NE_APP="07_describe_ne_app.sh"
-readonly STOP_POD="08_stop_pod.sh"
+readonly RUN_APP="06_run_app.sh"
+readonly STOP_APP="07_stop_app.sh"
 readonly CLEANUP_RESOURCES="99_cleanup_resources.sh"
 
 USAGE="\
@@ -50,10 +49,6 @@ Commands:
 
     run                 Deploys a Nitro Enclaves with K8s example application.
         --image	          The image name
-
-    describe	          Describes a Nitro Enclaves application. If the Nitro Enclave is
-                        in debug-mode, it shall fetch the Nitro Enclave console
-        --image           The ECR image previously deployed and running.
 
     stop                Destroys the Nitro Enclaves application deployed via the 'run' command
         --image		        The ECR image previously deployed and running.
@@ -283,7 +278,7 @@ cmd_run() {
     shift;
   done
 
-  exec_subscript "$SCRIPTS_DIR/$RUN_POD" "$image" "$prepare_only"
+  exec_subscript "$SCRIPTS_DIR/$RUN_APP" "$image" "$prepare_only"
   ok_or_die "Error while running application!"
 }
 
@@ -292,21 +287,8 @@ cmd_stop() {
 
   case $1 in
     --image)
-      exec_subscript "$SCRIPTS_DIR/$STOP_POD" "$2"
+      exec_subscript "$SCRIPTS_DIR/$STOP_APP" "$2"
       ok_or_die "Error while stopping the application!"
-      ;;
-    *)
-      die "Invalid arguments. Please use \`$0 help\` for help."
-  esac
-}
-
-cmd_describe() {
-  validate_arg_count $# 2
-
-  case $1 in
-    --image)
-      exec_subscript "$SCRIPTS_DIR/$DESCRIBE_NE_APP" "$2"
-      ok_or_die "Error while describing application!"
       ;;
     *)
       die "Invalid arguments. Please use \`$0 help\` for help."
