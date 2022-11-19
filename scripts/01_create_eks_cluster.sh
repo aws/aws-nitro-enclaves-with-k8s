@@ -47,7 +47,7 @@ main() {
 
   say_warn "####################################################"
   say_warn "Using $FILE_CLUSTER_CONFIG to create an EKS cluster."
-  say_warn "Cluster creation operation will take 15-20 minutes."
+  say_warn "Cluster creation will take some time."
   say_warn "####################################################"
 
   reset_ifs
