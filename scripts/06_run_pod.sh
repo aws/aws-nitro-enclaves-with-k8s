@@ -7,27 +7,32 @@
 ####################################################
 
 main() {
-	local project_name=$1
-	local repo_name="$project_name-$CONFIG_SETUP_UUID"
-  local repo_uri=$(get_repository_uri $repo_name)
+  local tool_image_name=$1
+  local image_name="$tool_image_name-$CONFIG_SETUP_UUID"
+  local repository_uri=$(get_repository_uri $image_name)
 
-  [[ "$repo_uri" != "null" ]] || {
-    say_err "Cannot get repository URI for $repo_name!"
+  [[ "$repository_uri" == "null" || "$repository_uri" == "" ]] && {
+    say_err "Cannot get repository URI for $repository_name!"
     return $FAILURE
   }
 
-  local podspec_file="$WORKING_DIR/$project_name_podspec.yaml"
+  local deployment_file="$WORKING_DIR/${tool_image_name}_deployment.yaml"
 
   # Prepare necessary resources before running the app.
-  trigger_event $project_name on_run 
-  # Render a podspec file.
-  trigger_event $project_name on_podspec_requested \
-                  "$project_name" "$repo_uri" \
-                  "$podspec_file"
+  trigger_event $tool_image_name on_run
+  # Render a deployment file.
+  trigger_event $tool_image_name \
+                on_file_requested \
+                "$deployment_file" \
+                "$image_name" \
+                "$repository_uri"
 
+  say "Generated deployment file: $(basename $deployment_file)."
+  local prepare_only=$2
+  [[ "$prepare_only" != false ]] && { return $SUCCESS; }
 
-  kubectl apply -f $podspec_file || {
-    say_err "Error applying podspec file: $pod_spec_file"
+  kubectl apply -f $deployment_file || {
+    say_err "Error while applying deployment file: $deployment_file"
     return $FAILURE
   }
 }
