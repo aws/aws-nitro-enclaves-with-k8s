@@ -13,7 +13,9 @@ main() {
   local dockerfile_path=$build_path/$project_name/Dockerfile
 
   docker image rm $image || true
-  docker build -t $image -f $dockerfile_path $build_path || {
+  docker build --target image \
+    --build-arg config_region=$CONFIG_REGION \
+    -t $image -f $dockerfile_path $build_path || {
     say_err "Error while building docker image! (Code: $?)"
     return $FAILURE
   }

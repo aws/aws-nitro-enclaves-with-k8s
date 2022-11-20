@@ -25,6 +25,7 @@ build_enclave_apps() {
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v $BUILDER_ARTIFACTS_DIR:/output \
     -v $BUILDER_CONTAINER_DIR/$project_name:/source \
+    --env-file $FILE_CONFIGURATION \
     -it $BUILDER_IMAGE
 }
 
