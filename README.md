@@ -55,7 +55,6 @@ After running this command, the tool confirms successful configuration like belo
 ```
 
 and becomes ready for further steps.
-
 <br />
 
 2) **Set up an Enclave-aware EKS Cluster**:
@@ -76,7 +75,7 @@ This high-level command consists of three internal steps:
 
 Normally, we deploy applications to EKS clusters in containers. This is still valid, but Enclave applications need one more step. When you want to run your application in an enclave, it needs to be packaged in an **Enclave Image File (EIF)**. To get more information about building **EIFs**, please take a look at this [user guide](https://docs.aws.amazon.com/enclaves/latest/user/building-eif.html).
 
-The tutorial utilizes a **builder** docker container which is responsible for building the enclave applications and creating an EIF file. The build process might take some time. So, if you want to quickly try the examples without waiting, there are prebuilt binaries available. To download them, use the helper script:
+The tutorial utilizes a **builder** docker container which is responsible for building the enclave applications and creating executables. The build process might take some time. So, if you want to quickly try the examples without waiting, there are prebuilt binaries available. To download them, use the helper script:
 ```
 ./scripts/fetch_prebuilt.sh
 ```
@@ -103,22 +102,28 @@ For the subsequent uses, the command will always use the previously created repo
 
 <br />
 
-5) **Run hello example in the cluster**: Use
-```
-nectl run --image hello
-```
-
-This command does pre-initialization (if needed), generates a deployment file and deploy your application in the EKS cluster. Or you might want to use **kubectl** to deploy your applications at this point. To use **kubectl**,
-
+5) **Run hello example in the cluster**:
+To prepare our application for deployment, use
 ```
 nectl run --image hello --prepare-only
 ```
 
-This command behaves similarly like the previous command above without performing deployment. So, to deploy your image:
+This command does necessary pre-initialization (if exists) for the application before deployment and generates `<image_name>_deployment.yaml` deployment specification. To see the contents of
+the deployment specification, use
+```
+cat hello_deployment.yaml
+```
+
+Finally, to deploy your application to the cluster, use:
 ```
 kubectl apply -f hello_deployment.yaml
 ```
 
+These deployment steps above could be shortened by using a single command:
+```
+nectl run --image hello
+```
+This command also does pre-initialization, deployment specification generation and finally calls **kubectl** in the background.
 <br />
 
 6) **Check the logs**:
@@ -142,7 +147,7 @@ When you ensure that the application is running, press "Ctrl + C" to terminate *
 ```
 kubectl logs <deployment name>
 ```
-You can find the `<deployment name>` from your terminal logs. In the sample terminal output above, it was **hello-deployment-7bf5d9b79-qv8vm**. After successful execution of this command, you will see output like this below. The application keeps printing "Hello from the enclave side!" message every **5** seconds.
+You can find the `<deployment name>` from your terminal logs. In the sample terminal output above, it was **hello-deployment-7bf5d9b79-qv8vm**. After successful execution of this command, you will see output like this below.
 
 ```
 [   1] Hello from the enclave side!
@@ -151,6 +156,8 @@ You can find the `<deployment name>` from your terminal logs. In the sample term
 [   4] Hello from the enclave side!
 [   5] Hello from the enclave side!
 ```
+The application keeps printing "Hello from the enclave side!" message every **5** seconds.
+<br />
 
 7) **Stopping the application**: Use
 ```
@@ -163,7 +170,7 @@ We have already seen that the **hello** application is running. This time, we wi
 
 ## Building and running the KMS example
 
-[KMS Tool](https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/docs/kmstool.md) is a small example application for aws-nitro-enclaves-sdk-c that is able to connect to KMS and decrypt an encrypted KMS message. For this application, the user would be required to create a role which is associated with the EC2 instance that has permissions to access the KMS service in order to create a key, encrypt a message and decrypt the message inside the enclave. In EKS, we already have a role associated with the instance but those permissions do not apply to the **Kubernetes** containers. In order to resolve this, we require a service account that has all the required permissions.
+[KMS Tool](https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/docs/kmstool.md) is an example application for aws-nitro-enclaves-sdk-c that is able to connect to KMS and decrypt an encrypted KMS message. For this application, the user would be required to create a role which is associated with the EC2 instance that has permissions to access the KMS service in order to create a key, encrypt a message and decrypt the message inside the enclave. In EKS, we already have a role associated with the instance but those permissions do not apply to the **Kubernetes** containers. In order to resolve this, we require a service account that has all the required permissions.
 
 All the preliminary steps described above will be handled by **nectl** tool.
 
@@ -181,14 +188,7 @@ kubectl get pods --selector app=kms --watch
 ## Creating your own example application
 
 To quickly create your own application within this tutorial, you need to perform a few more steps. All application specific data is stored under **container** folder. **hello** can be
-a good example to see what kind of files are required for your application.
-
-To start preparing your application, please create a folder (e.g. my_app) under the **container/** folder. Then, go to the folder and create the files listed below:
-
- - **Dockerfile** is needed to build container that holds your application.
- - **enclave_manifest.json**: is optional and contains configuration to build your EIF image. This file instructs builder container to run and create an EIF of your application. If you do not prefer to use this automated solution, the use of [Nitro CLI](https://github.com/aws/aws-nitro-enclaves-cli) is also a viable option to build EIF images. For more information about the [Nitro CLI](https://github.com/aws/aws-nitro-enclaves-cli) tool, please take a look at this [document](https://docs.aws.amazon.com/enclaves/latest/user/building-eif.html).
- - **hooks.sh** is optional and holds some hook functions to perform application-specific processing.
-
+a good example to see what kind of files are required for your application. To see more information, please check this [document](./container/README.md).
 
 ## Cleaning up AWS resources
 If you followed this tutorial partially or entirely, it must have created some AWS resources. To clean them up, please use
