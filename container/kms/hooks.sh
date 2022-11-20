@@ -35,12 +35,12 @@ spec:
         resources:
           limits:
             aws.ec2.nitro/nitro_enclaves: "1"
-            hugepages-2Mi: 564Mi
+            hugepages-2Mi: 768Mi
             memory: 2Gi
             cpu: 250m
           requests:
             aws.ec2.nitro/nitro_enclaves: "1"
-            hugepages-2Mi: 564Mi
+            hugepages-2Mi: 768Mi
         volumeMounts:
         - mountPath: /dev/hugepages
           name: hugepage
@@ -79,9 +79,9 @@ on_run() {
         say_err "Error while creating a service account!"
         return $FAILURE
     }
-  
+
   local policy_arn=$(aws iam list-policies --query 'Policies[?PolicyName==`enclave_sa_policy`].Arn' --output text)
-   
+
   if [[ -z "$policy_arn" ]]
   then
     aws iam create-policy \
