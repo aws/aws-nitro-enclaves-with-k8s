@@ -1,18 +1,20 @@
-#!/bin/bash
+#!/bin/bash -e
 # Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
-EIF_FNAME=hello.eif
-EIF_PATH=/home/${EIF_FNAME}
-LOG_PATH=/tmp/
+readonly EIF_PATH="/home/hello.eif"
+readonly ENCLAVE_CPU_COUNT=2
+readonly ENCLAVE_MEMORY_SIZE=128
 
-ENCLAVE_CPU_COUNT=2
-ENCLAVE_MEMORY_SIZE=512
+main() {
+    nitro-cli run-enclave --cpu-count $ENCLAVE_CPU_COUNT --memory $ENCLAVE_MEMORY_SIZE \
+        --eif-path $EIF_PATH --debug-mode
 
-nitro-cli describe-enclaves 2>/dev/null
-nitro-cli run-enclave --cpu-count ${ENCLAVE_CPU_COUNT} --memory ${ENCLAVE_MEMORY_SIZE} --eif-path ${EIF_PATH} --debug-mode
+    local enclave_id=$(nitro-cli describe-enclaves | jq -r ".[0].EnclaveID")
+    echo "-------------------------------"
+    echo "Enclave ID is $enclave_id"
+    echo "-------------------------------"
 
-ENCLAVE_ID=$(nitro-cli describe-enclaves | jq -r ".[0].EnclaveID")
-echo "Enclave ID is ${ENCLAVE_ID}"
+    nitro-cli console --enclave-id $enclave_id # blocking call.
+}
 
-nitro-cli console --enclave-id ${ENCLAVE_ID} 
-nitro-cli terminate-enclave --enclave-id ${ENCLAVE_ID}
+main

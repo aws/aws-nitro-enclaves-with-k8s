@@ -1,41 +1,78 @@
-#!/bin/bash
+#!/bin/bash -e
 #Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
-EIF_FNAME=kmstool.eif
-EIF_PATH=/home/${EIF_FNAME}
-LOG_PATH=/tmp/
+readonly MY_NAME="kms-example"
 
-ENCLAVE_CPU_COUNT=2
-ENCLAVE_MEMORY_SIZE=564
+readonly EIF_PATH="/home/kmstool.eif"
+readonly ENCLAVE_CPU_COUNT=2
+readonly ENCLAVE_MEMORY_SIZE=576
 
-mkdir -p /run/nitro_enclaves
-nitro-enclaves-allocator
+CIPHERTEXT=""
 
-ACCOUNT_ID=$(aws sts get-caller-identity | jq -r .Account)
-echo $ACCOUNT_ID
-sed -i "s/ACCOUNT_ID/${ACCOUNT_ID}/g" /home/test-enclave-policy.json
+log() {
+    echo -e "[$MY_NAME] $*" 1>&2
+}
 
-KMS_KEY_ARN=$(aws kms create-key --description "Nitro Enclaves Test Key" --policy file:///home/test-enclave-policy.json --query KeyMetadata.Arn --output text)
-echo $KMS_KEY_ARN
+init() {
+    # Load configuration
+    # - CMK_REGION
+    # - CONFIG_VERBOSE
+    source "/home/.config"
 
-MESSAGE="Hello, KMS\!"
-CIPHERTEXT=$(aws kms encrypt --key-id "$KMS_KEY_ARN" --plaintext "$MESSAGE" --query CiphertextBlob --output text --region eu-central-1)
-echo $CIPHERTEXT
+    [[ -z "$CMK_REGION" ]] && {
+        log "[ERROR]: AWS region cannot be empty!"
+        exit 1
+    }
 
-nitro-cli describe-enclaves 2>/dev/null
-nitro-cli run-enclave --cpu-count ${ENCLAVE_CPU_COUNT} --memory ${ENCLAVE_MEMORY_SIZE} --eif-path ${EIF_PATH} --debug-mode
+    local account_id=$(aws sts get-caller-identity | jq -r .Account)
+    sed -i "s/ACCOUNT_ID/${account_id}/g" /home/test-enclave-policy.json
 
-ENCLAVE_ID=$(nitro-cli describe-enclaves | jq -r ".[0].EnclaveID")
-echo "Enclave ID is ${ENCLAVE_ID}"
-ENCLAVE_CID=$(nitro-cli describe-enclaves | jq -r .[0].EnclaveCID)
-echo "Enclave CID is ${ENCLAVE_CID}"
+    log "Creating a KMS key..."
+    local kms_key_arn=$(aws kms create-key --description "Nitro Enclaves Test Key" --policy file:///home/test-enclave-policy.json --query KeyMetadata.Arn --output text)
+    local message="Hello, KMS\!"
 
-CMK_REGION=eu-central-1
-vsock-proxy 8000 kms.$CMK_REGION.amazonaws.com 443 &
+    log "Encrypting message..."
+    CIPHERTEXT=$(aws kms encrypt --key-id "$kms_key_arn" --plaintext "$message" --query CiphertextBlob --output text --region "$CMK_REGION")
 
-KMS_OUTPUT=$(./kmstool_instance --cid "$ENCLAVE_CID" --region "$CMK_REGION" "$CIPHERTEXT")
-echo $KMS_OUTPUT
+    log "******************************"
+    log "KMS Key ARN: $kms_key_arn"
+    log "Account ID: $account_id"
+    log "Unencrypted message: $message"
+    log "Ciphertext: $CIPHERTEXT"
+    log "******************************"
 
-nitro-cli console --enclave-id ${ENCLAVE_ID} 
-nitro-cli terminate-enclave --enclave-id ${ENCLAVE_ID}
+    nitro-cli run-enclave --cpu-count $ENCLAVE_CPU_COUNT --memory $ENCLAVE_MEMORY_SIZE \
+        --eif-path $EIF_PATH --debug-mode 2>&1 > /dev/null
 
+    vsock-proxy 8000 kms.$CMK_REGION.amazonaws.com 443 &
+}
+
+uninit() {
+    local enclave_id=$1
+    nitro-cli terminate-enclave --enclave-id $enclave_id 2>&1 > /dev/null
+}
+
+main() {
+    init
+
+    local desc=$(nitro-cli describe-enclaves)
+    local enclave_id=$(echo $desc | jq -r .[0].EnclaveID)
+    local enclave_cid=$(echo $desc | jq -r .[0].EnclaveCID)
+    local kms_command="kmstool_instance --cid $enclave_cid --region $CMK_REGION $CIPHERTEXT"
+    [[ "$CONFIG_VERBOSE" != "yes" ]] && {
+        kms_command+=" 2>&1 | grep \"Object = { \\\"Status\\\"\""
+    }
+
+    log "Requesting from the enclave to decrypt message..."
+
+    local kms_output=$(eval $kms_command)
+    log "------------------------"
+    log "> Got response from the enclave!"
+    log $kms_output
+    log "------------------------"
+    uninit $enclave_id
+
+    sleep infinity
+}
+
+main
