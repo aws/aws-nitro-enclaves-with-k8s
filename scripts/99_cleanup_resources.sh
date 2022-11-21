@@ -8,7 +8,7 @@
 
 delete_file() {
  say "Deleting $1..."
- #rm -f $WORKING_DIR/$1
+ rm -f $WORKING_DIR/$1
 }
 
 ####################################################

@@ -7,7 +7,7 @@
 ####################################################
 
 _create_deployment_file() {
-  local filename=$1
+  local filepath=$1
   local container_name=$2
   local repository_uri=$3
 
@@ -60,7 +60,7 @@ EOF
   # Create deployment yaml file
   #
   reset_ifs
-  printf '%s\n' $file_content > $filename || return $FAILURE
+  printf '%s\n' $file_content > $filepath || return $FAILURE
   restore_ifs
 
   return $SUCCESS
@@ -110,14 +110,16 @@ on_run() {
 }
 
 on_file_requested() {
+  local filename=$1
+  local target_dir=$2
   local retval=$SUCCESS
-  local req_file=$1
 
-  case $(basename $req_file) in
+  case $filename in
   "kms_deployment.yaml")
-    local container_name=$2;
-    local repository_uri=$3;
-    _create_deployment_file "$req_file" "$2" "$3"; retval=$?;
+    local fullpath=$target_dir/$filename
+    local container_name=$3;
+    local repository_uri=$4;
+    _create_deployment_file "$fullpath" "$container_name" "$repository_uri"; retval=$?;
     ;;
   *)
     say_err "${FUNCNAME[0]}: Requested file $1 is unknown."
