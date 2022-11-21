@@ -1,7 +1,7 @@
 {
     "name": "kms-example",
     "repository": "https://github.com/aws/aws-nitro-enclaves-sdk-c.git",
-    "tag": "ne-with-k8s",
+    "tag": "v0.3.1",
     "eif": {
         "name": "kmstool.eif",
         "docker": {

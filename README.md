@@ -75,7 +75,7 @@ This high-level command consists of three internal steps:
 
 Normally, we deploy applications to EKS clusters in containers. This is still valid, but Enclave applications need one more step. When you want to run your application in an enclave, it needs to be packaged in an **Enclave Image File (EIF)**. To get more information about building **EIFs**, please take a look at this [user guide](https://docs.aws.amazon.com/enclaves/latest/user/building-eif.html).
 
-The tutorial utilizes a **builder** docker container which is responsible for building the enclave applications and creating executables. The build process might take some time. So, if you want to quickly try the examples without waiting, there are prebuilt binaries available. To download them, use the helper script:
+The tutorial utilizes a **builder** docker container which is responsible for building the enclave applications and creating executables. The build process might take some time. If you want to quickly try the examples without building an enclave application, there are prebuilt binaries available. To download them, use the helper script:
 ```
 ./scripts/fetch_prebuilt.sh
 ```
@@ -86,7 +86,7 @@ To trigger a build, use:
 ```
 nectl build --image hello
 ```
-As an important note, the build system builds an EIF file if it does not already exist in **containers/bin/** folder. Otherwise, existing EIF is reused.
+*The build system builds an EIF file if it does not already exist in **containers/bin/** folder. Otherwise, existing EIF is reused.*
 
 <br />
 
@@ -108,7 +108,7 @@ To prepare our application for deployment, use
 nectl run --image hello --prepare-only
 ```
 
-This command does necessary pre-initialization (if exists) for the application before deployment and generates `<image_name>_deployment.yaml` deployment specification. To see the contents of
+This command does necessary pre-initialization (if exists) for the application before deployment and generates deployment specification. To see the contents of
 the deployment specification, use
 ```
 cat hello_deployment.yaml
@@ -119,7 +119,7 @@ Finally, to deploy your application to the cluster, use:
 kubectl apply -f hello_deployment.yaml
 ```
 
-These deployment steps above could be shortened by using a single command:
+All the steps above (preinitialization, deployment spec generation and application deployment) can also be done through a single command: 
 ```
 nectl run --image hello
 ```
@@ -133,7 +133,7 @@ We successfully built and have started deploying our application. To check deplo
 kubectl get pods --selector app=hello --watch
 ```
 
-Deployment time differs for every user, but the command is expected to report a similar output like below after a short while:
+After a while the command is expected to report a similar output like below after a short while:
 
 ```
 NAME                               READY   STATUS              RESTARTS   AGE

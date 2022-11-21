@@ -16,7 +16,7 @@ main() {
     return $FAILURE
   }
 
-  local deployment_file="$WORKING_DIR/${tool_image_name}_deployment.yaml"
+  local deployment_file="${tool_image_name}_deployment.yaml"
 
   # Prepare necessary resources before running the app.
   trigger_event $tool_image_name on_run
@@ -24,14 +24,15 @@ main() {
   trigger_event $tool_image_name \
                 on_file_requested \
                 "$deployment_file" \
+                "$WORKING_DIR" \
                 "$image_name" \
                 "$repository_uri"
 
-  say "Generated deployment file: $(basename $deployment_file)."
+  say "Generated deployment file: $deployment_file."
   local prepare_only=$2
   [[ "$prepare_only" != false ]] && { return $SUCCESS; }
 
-  kubectl apply -f $deployment_file || {
+  kubectl apply -f "$WORKING_DIR/$deployment_file" || {
     say_err "Error while applying deployment file: $deployment_file"
     return $FAILURE
   }
