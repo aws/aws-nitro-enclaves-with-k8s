@@ -6,40 +6,27 @@
 # Launch Template: User Data
 ####################################################
 
-readonly lt_user_data=$(cat<<"EOF"
+readonly lt_user_data=$(cat<<EOF
 MIME-Version: 1.0
 Content-Type: multipart/mixed; boundary="==MYBOUNDARY=="
 
 --==MYBOUNDARY==
 Content-Type: text/x-shellscript; charset="us-ascii"
 
-#!/bin/bash
-set -uxo pipefail
+#!/bin/bash -e
+readonly NE_ALLOCATOR_SPEC_PATH="/etc/nitro_enclaves/allocator.yaml"
+# Node resources that will be allocated for Nitro Enclaves
+readonly CPU_COUNT=$CONFIG_NODE_ENCLAVE_CPU_LIMIT
+readonly MEMORY_MIB=$CONFIG_NODE_ENCLAVE_MEMORY_LIMIT_MIB
 
-# Test to see if the Nitro enclaves module is loaded
-lsmod | grep -q nitro_enclaves
-RETURN=${?}
-
-set -e
-
-# Setup Nitro enclave on the host if the module is available as expected.
-if [ ${RETURN} -eq 0 ]; then
-  yum update -y
-  amazon-linux-extras install aws-nitro-enclaves-cli -y
-  yum install aws-nitro-enclaves-cli-devel -y
-  usermod -aG ne ec2-user
-  usermod -aG ne root
-  usermod -aG docker ec2-user
-  usermod -aG docker root
-  systemctl start nitro-enclaves-allocator.service
-  systemctl enable nitro-enclaves-allocator.service
-  systemctl start docker
-  systemctl enable docker
-  sysctl -w vm.nr_hugepages=2048
-  echo "vm.nr_hugepages=2048" >> /etc/sysctl.conf
-  chgrp ne /dev/nitro_enclaves
-  echo "Done with AWS Nitro enclave Setup"
-fi
+# This step below is needed to install nitro-enclaves-allocator service.
+amazon-linux-extras install aws-nitro-enclaves-cli -y
+# Update enclave's allocator specification: allocator.yaml
+sed -i "s/cpu_count:.*/cpu_count: \$CPU_COUNT/g" \$NE_ALLOCATOR_SPEC_PATH
+sed -i "s/memory_mib:.*/memory_mib: \$MEMORY_MIB/g" \$NE_ALLOCATOR_SPEC_PATH
+# Restart the nitro-enclaves-allocator service to take changes effect.
+systemctl restart nitro-enclaves-allocator.service
+echo "NE user data script has finished successfully."
 --==MYBOUNDARY==
 EOF
 )

@@ -9,7 +9,7 @@ MY_DESC="AWS Nitro Enclaves with K8s utility tool"
 source "$(dirname $(realpath $0))/scripts/common.sh"
 
 # Configuration items
-CONFIG_NAMES=(region instance_type eks_cluster_name eks_worker_node_name k8s_version)
+CONFIG_NAMES=(region instance_type eks_cluster_name eks_worker_node_name k8s_version node_enclave_cpu_limit node_enclave_memory_limit_mib)
 
 # Utility functions and definitions
 source "$SCRIPTS_DIR/utils.sh"

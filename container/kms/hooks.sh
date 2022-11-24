@@ -36,7 +36,6 @@ spec:
           limits:
             aws.ec2.nitro/nitro_enclaves: "1"
             hugepages-2Mi: 768Mi
-            memory: 2Gi
             cpu: 250m
           requests:
             aws.ec2.nitro/nitro_enclaves: "1"
@@ -45,15 +44,18 @@ spec:
         - mountPath: /dev/hugepages
           name: hugepage
           readOnly: false
+      volumes:
+        - name: hugepage-2mi
+        emptyDir:
+          medium: HugePages-2Mi
+        - name: hugepage-1gi
+        emptyDir:
+          medium: HugePages-1Gi
       tolerations:
       - effect: NoSchedule
         operator: Exists
       - effect: NoExecute
         operator: Exists
-      volumes:
-        - name: hugepage
-          emptyDir:
-            medium: HugePages
 EOF
 )
 
