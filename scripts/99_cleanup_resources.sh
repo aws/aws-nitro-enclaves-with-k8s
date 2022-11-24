@@ -11,15 +11,11 @@ delete_file() {
  rm -f $WORKING_DIR/$1
 }
 
-####################################################
-# Main
-####################################################
+is_eksctl_installed() {
+  which eksctl 2>&1 > /dev/null
+}
 
-main() {
-  local force_cleanup=$1
-  #TODO: Delete the ECR repository
-  #TODO: Delete docker images
-
+delete_eks_resources() {
   say "Attempt to delete cluster node group: $CONFIG_EKS_WORKER_NODE_NAME"
 
   eksctl delete nodegroup --cluster=$CONFIG_EKS_CLUSTER_NAME --name=$CONFIG_EKS_WORKER_NODE_NAME \
@@ -35,6 +31,20 @@ main() {
       say_err "Cluster cannot be deleted."
       return $FAILURE
     }
+}
+
+####################################################
+# Main
+####################################################
+
+main() {
+  local force_cleanup=$1
+  #TODO: Delete the ECR repository
+  #TODO: Delete docker images
+
+  is_eksctl_installed && {
+    delete_eks_resources $force_cleanup
+  }
 
   local lt_name="lt_$CONFIG_SETUP_UUID"
   local lt_id=$(get_launch_template_id $lt_name)
