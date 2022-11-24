@@ -75,8 +75,20 @@ cmd_help() {
   say "$USAGE"
 }
 
+# Ensure basic dependencies of the project are installed.
+ensure_basic_deps() {
+  which docker > /dev/null 2>&1
+  ok_or_die "docker not found. Aborting." \
+      "Please make sure you have docker installed. For more information, see" \
+      "https://docs.docker.com/desktop/install/linux-install"
+
+  which jq > /dev/null 2>&1
+  ok_or_die "jq not found. Aborting." \
+  "Please make sure you have jq package installed."
+}
+
 # Ensure eksctl and kubectl are available on this deployment machine
-ensure_deps() {
+ensure_eks_deps() {
   which eksctl > /dev/null 2>&1
   ok_or_die "eksctl not found. Aborting." \
       "Please make sure you have eksctl installed. For more information, see" \
@@ -86,15 +98,6 @@ ensure_deps() {
   ok_or_die "kubectl not found. Aborting." \
       "Please make sure you have kubectl installed. For more information, see" \
       "https://docs.aws.amazon.com/eks/latest/userguide/getting-started.html."
-
-  which docker > /dev/null 2>&1
-  ok_or_die "docker not found. Aborting." \
-      "Please make sure you have docker installed. For more information, see" \
-      "https://docs.docker.com/desktop/install/linux-install"
-
-  which jq > /dev/null 2>&1
-  ok_or_die "jq not found. Aborting." \
-  "Please make sure you have jq package installed."
 }
 
 exec_subscript() {
@@ -319,28 +322,36 @@ main() {
     exit 1
   fi
 
-  # Ensure dependencies
-  ensure_deps
+  # Ensure basic dependencies
+  ensure_basic_deps
   # Try loading applied settings.
   try_load_configuration
 
   local cmd="$1"
   case "$1" in
-   -h|help)
-       cmd_help
-       exit 1
-       ;;
+    -h|help)
+     cmd_help
+     exit 1
+     ;;
    -c|configure)
-       shift
-       cmd_configure "$@"
-       ;;
+     shift
+     cmd_configure "$@"
+     ;;
    *)
-       declare -f "cmd_$cmd" > /dev/null
-       ok_or_die "Unknown command: $1. Please use \`$MY_NAME help\` for help."
-       [[ ! -f $WORKING_DIR/$FILE_CONFIGURATION ]] && \
-           die "The demo hasn't been configured yet. Please use \`$MY_NAME help\` to know how to configure."
-       cmd_"$@"
-       ;;
+     declare -f "cmd_$cmd" > /dev/null
+     ok_or_die "Unknown command: $1. Please use \`$MY_NAME help\` for help."
+
+     case "$1" in
+       setup|run|stop)
+        ensure_eks_deps
+        ;;
+     esac
+
+     [[ ! -f $WORKING_DIR/$FILE_CONFIGURATION ]] && \
+       die "The demo hasn't been configured yet. Please use \`$MY_NAME help\` to know how to configure."
+
+     cmd_"$@"
+     ;;
   esac
 }
 
