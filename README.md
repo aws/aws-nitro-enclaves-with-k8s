@@ -30,14 +30,16 @@ To get some help for the tool, type:
 nectl --help
 ```
 
-The default settings for **nectl** are stored in **settings.json**. The content of this file is shown below. You can change the AWS region, the instance type of the cluster nodes, **Kubernetes** version, cluster name and node group name if wanted.
+The default settings for **nectl** are stored in **settings.json**. The content of this file is shown below. You can change the AWS region, the instance type of the cluster nodes, **Kubernetes** version, cluster name, cluster node group name, the maximum numbers of CPU cores that enclave can use and the node-level memory limit for enclave if wanted.
 ```
 {
   "region" : "eu-central-1",
   "instance_type" : "m5.2xlarge",
   "eks_cluster_name" : "eks-ne-cluster",
   "eks_worker_node_name" : "eks-ne-nodegroup",
-  "k8s_version" : "1.22"
+  "k8s_version" : "1.22",
+  "node_enclave_cpu_limit": 2,
+  "node_enclave_memory_limit_mib": 768
 }
 ```
 <br />
