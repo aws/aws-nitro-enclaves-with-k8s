@@ -5,7 +5,7 @@ readonly MY_NAME="kms-example"
 
 readonly EIF_PATH="/home/kmstool.eif"
 readonly ENCLAVE_CPU_COUNT=2
-readonly ENCLAVE_MEMORY_SIZE=576
+readonly ENCLAVE_MEMORY_SIZE=128
 
 CIPHERTEXT=""
 

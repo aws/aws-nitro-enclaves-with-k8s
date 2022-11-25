@@ -31,6 +31,14 @@ spec:
         image: $repository_uri:latest
         command: ["/home/run.sh"]
         imagePullPolicy: Always
+        volumeMounts:
+        - mountPath: /hugepages-2Mi
+          name: hugepage-2mi
+          readOnly: false
+        # Enable if 1Gi pages are required
+        #- mountPath: /hugepages-1Gi
+        #  name: hugepage-1gi
+        #  readOnly: false
         resources:
           limits:
             aws.ec2.nitro/nitro_enclaves: "1"
@@ -39,15 +47,11 @@ spec:
           requests:
             aws.ec2.nitro/nitro_enclaves: "1"
             hugepages-2Mi: 512Mi
-        volumeMounts:
-        - mountPath: /dev/hugepages
-          name: hugepage
-          readOnly: false
       volumes:
-        - name: hugepage-2mi
+      - name: hugepage-2mi
         emptyDir:
           medium: HugePages-2Mi
-        - name: hugepage-1gi
+      - name: hugepage-1gi
         emptyDir:
           medium: HugePages-1Gi
       tolerations:
