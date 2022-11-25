@@ -19,7 +19,7 @@ We will build these enclave applications in the following steps and have them ru
 
 ## Using this repository
 
-This repository contains a tool called **nectl** that you can use to build and deploy your enclave apps. We will be using **nectl** tool along this tutorial. To add the tool to your **$PATH** variable, use:
+This repository contains a tool called **enclavectl** that you can use to build and deploy your enclave apps. We will be using **enclavectl** tool along this tutorial. To add the tool to your **$PATH** variable, use:
 
 ```
 source env.sh
@@ -27,16 +27,17 @@ source env.sh
 
 To get some help for the tool, type:
 ```
-nectl --help
+enclavectl --help
 ```
 
-The default settings for **nectl** are stored in **settings.json**. The content of this file is shown below. You can change the AWS region, the instance type of the cluster nodes, **Kubernetes** version, cluster name, cluster node group name, the maximum numbers of CPU cores that enclave can use and the node-level memory limit for enclave if wanted.
+The default settings for **enclavectl** are stored in **settings.json**. The content of this file is shown below. You can change the AWS region, the instance type of the cluster nodes, **Kubernetes** version, cluster name, cluster node group name, the maximum numbers of CPU cores that enclave can use and the node-level memory limit for enclave if wanted.
 ```
 {
   "region" : "eu-central-1",
   "instance_type" : "m5.2xlarge",
   "eks_cluster_name" : "eks-ne-cluster",
   "eks_worker_node_name" : "eks-ne-nodegroup",
+  "eks_worker_node_capacity" : "1",
   "k8s_version" : "1.22",
   "node_enclave_cpu_limit": 2,
   "node_enclave_memory_limit_mib": 768
@@ -46,14 +47,14 @@ The default settings for **nectl** are stored in **settings.json**. The content 
 
 ## Getting started
 
-1) **Configuration**: Let's start off by configuring **nectl** tool.
+1) **Configuration**: Let's start off by configuring **enclavectl** tool.
 ```
-nectl configure --file settings.json
+enclavectl configure --file settings.json
 ```
 
 After running this command, the tool confirms successful configuration like below
 ```
-[nectl] Configuration finished successfully.
+[enclavectl] Configuration finished successfully.
 ```
 
 and becomes ready for further steps.
@@ -63,7 +64,7 @@ and becomes ready for further steps.
 
 This is a preliminary step where we define the capabilities of our EKS cluster.
 ```
-nectl setup
+enclavectl setup
 ```
 This high-level command consists of three internal steps:
 - **Create a launch template**: This helps us to create Nitro Enclaves-enabled EC2 instances.
@@ -86,7 +87,7 @@ When the script succeeds, you will see prebuilt binaries saved under **container
 
 To trigger a build, use:
 ```
-nectl build --image hello
+enclavectl build --image hello
 ```
 *The build system builds an EIF file if it does not already exist in **containers/bin/** folder. Otherwise, existing EIF is reused.*
 
@@ -96,7 +97,7 @@ nectl build --image hello
 In the following steps, EKS will need to pull our image from a docker repository. We will be using [Amazon Elastic Container Registry (ECR)](https://aws.amazon.com/ecr/) for this purpose.
 
 ```
-nectl push --image hello
+enclavectl push --image hello
 ```
 
 This command creates a repository under your private ECR registry unless there is none created before. Then, it pushes your **hello** image to the aforementioned repository.
@@ -107,7 +108,7 @@ For the subsequent uses, the command will always use the previously created repo
 5) **Run hello example in the cluster**:
 To prepare our application for deployment, use
 ```
-nectl run --image hello --prepare-only
+enclavectl run --image hello --prepare-only
 ```
 
 This command does necessary pre-initialization (if exists) for the application before deployment and generates deployment specification. To see the contents of
@@ -123,7 +124,7 @@ kubectl apply -f hello_deployment.yaml
 
 All the steps above (preinitialization, deployment spec generation and application deployment) can also be done through a single command: 
 ```
-nectl run --image hello
+enclavectl run --image hello
 ```
 This command also does pre-initialization, deployment specification generation and finally calls **kubectl** in the background.
 <br />
@@ -163,10 +164,10 @@ The application keeps printing "Hello from the enclave side!" message every **5*
 
 7) **Stopping the application**: Use
 ```
-nectl stop --image hello
+enclavectl stop --image hello
 ```
 to stop the application. This function not only executes `kubectl -f delete hello_deployment.yaml` in the background, but also uninitalizes
-resources if any were initialized after `nectl run` command.
+resources if any were initialized after `enclavectl run` command.
 
 We have already seen that the **hello** application is running. This time, we will be looking into a more sophisticated example.
 
@@ -174,16 +175,16 @@ We have already seen that the **hello** application is running. This time, we wi
 
 [KMS Tool](https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/docs/kmstool.md) is an example application for aws-nitro-enclaves-sdk-c that is able to connect to KMS and decrypt an encrypted KMS message. For this application, the user would be required to create a role which is associated with the EC2 instance that has permissions to access the KMS service in order to create a key, encrypt a message and decrypt the message inside the enclave. In EKS, we already have a role associated with the instance but those permissions do not apply to the **Kubernetes** containers. In order to resolve this, we require a service account that has all the required permissions.
 
-All the preliminary steps described above will be handled by **nectl** tool.
+All the preliminary steps described above will be handled by **enclavectl** tool.
 
 As an important note, AWS currently supports one enclave per EC2 instance. Before moving on, please ensure you stopped the **hello** application.
 
 To run KMS example, please follow the similar steps below as you did for the **hello** application.
 
 ```
-nectl build --image kms
-nectl push --image kms
-nectl run --image kms
+enclavectl build --image kms
+enclavectl push --image kms
+enclavectl run --image kms
 kubectl get pods --selector app=kms --watch
 ```
 
@@ -195,7 +196,7 @@ a good example to see what kind of files are required for your application. To s
 ## Cleaning up AWS resources
 If you followed this tutorial partially or entirely, it must have created some AWS resources. To clean them up, please use
 ```
-nectl cleanup
+enclavectl cleanup
 ```
 
 ## Closing thoughts

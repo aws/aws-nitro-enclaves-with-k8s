@@ -1,5 +1,5 @@
 # How to create your own application?
-To start preparing your application, please first create a folder (e.g. my_app) under the **container/** directory. From now on, the application will be known by **nectl** with this folder name.
+To start preparing your application, please first create a folder (e.g. my_app) under the **container/** directory. From now on, the application will be known by **enclavectl** with this folder name.
 To successfully integrate your project, the existence of the files mentioned below in your application folder is essential.
 
 ## Dockerfile
@@ -84,10 +84,10 @@ on_stop() {
 
 ```
 
-**nectl** tool checks the existence of this file in your application's directory. If the file does not exist in the folder, or the functions highlighted above are not defined in **hooks.sh**, **nectl** will not try to call any of these functions. So, their implementation can be omitted based on the use case. On the other hand, when a function is implemented, it
-always needs to return success so that the **nectl** also succeeds.
+**enclavectl** tool checks the existence of this file in your application's directory. If the file does not exist in the folder, or the functions highlighted above are not defined in **hooks.sh**, **enclavectl** will not try to call any of these functions. So, their implementation can be omitted based on the use case. On the other hand, when a function is implemented, it
+always needs to return success so that the **enclavectl** also succeeds.
 
-  - `on_run` is triggered right after the `nectl run` command. This hook function helps user to perform certain initialization before the deployment.
-  - `on_file_requested` is a variadic function. The first two arguments are required: `filename` and `target_dir`. The implementer needs to identify the **$filename** and create it in the **$target_dir** directory. Whenever **nectl** needs to create an application-specific file, it may call this hook function with different number of arguments based on the context. For example, when it is called with `<your_projectname>_deployment.yaml` as the first argument, **$image_name** and **$repository_uri** also passed as the third and fourth arguments, respectively.
-  - `on_stop` is executed after the call made to `nectl stop` command. Used to rollback the initialization that was performed in `on_run` function if necessary.
+  - `on_run` is triggered right after the `enclavectl run` command. This hook function helps user to perform certain initialization before the deployment.
+  - `on_file_requested` is a variadic function. The first two arguments are required: `filename` and `target_dir`. The implementer needs to identify the **$filename** and create it in the **$target_dir** directory. Whenever **enclavectl** needs to create an application-specific file, it may call this hook function with different number of arguments based on the context. For example, when it is called with `<your_projectname>_deployment.yaml` as the first argument, **$image_name** and **$repository_uri** also passed as the third and fourth arguments, respectively.
+  - `on_stop` is executed after the call made to `enclavectl stop` command. Used to rollback the initialization that was performed in `on_run` function if necessary.
 <br />

@@ -2,14 +2,14 @@
 # Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-MY_VERSION="0.1"
-MY_NAME="nectl"
-MY_DESC="AWS Nitro Enclaves with K8s utility tool"
+MY_VERSION="0.1.0"
+MY_NAME="enclavectl"
+MY_DESC="AWS Nitro Enclaves with K8s deployment tool"
 
 source "$(dirname $(realpath $0))/scripts/common.sh"
 
 # Configuration items
-CONFIG_NAMES=(region instance_type eks_cluster_name eks_worker_node_name k8s_version node_enclave_cpu_limit node_enclave_memory_limit_mib)
+CONFIG_NAMES=(region instance_type eks_cluster_name eks_worker_node_name eks_worker_node_capacity k8s_version node_enclave_cpu_limit node_enclave_memory_limit_mib)
 
 # Utility functions and definitions
 source "$SCRIPTS_DIR/utils.sh"
@@ -30,31 +30,32 @@ $MY_NAME v$MY_VERSION - $MY_DESC
 Usage: $(basename "$0") <command> [arguments]
 
 Commands:
-    configure           Configures demo settings.
-        --file           The file containing the settings for configuration. (i.e. settings.json)
+    configure           Prepare the setup configuration
+        --file              The file containing the settings for configuration (i.e. settings.json)
 
-    setup               This high-level command creates an enclave aware EKS cluster.
-                         - Sets up a simple Enclave aware EC2 Launch Template
-                         - Launches an EKS cluster with a node-group based on the configuration
-                         - Installs Nitro Enclaves Device plugin as a daemonset
-                         - Enables Nitro Enclaves Kubernetes device plugin.
+    setup               Setup a Nitro Enable enabled EKS cluster based on input configuration
+                            - Generates a basic EC2 Launch Template for Nitro Enclaves and UserData
+                            - Creates an EKS cluster with a managed node-group of configured capacity
+                            - Deploys the Nitro Enclaves K8s Device plugin
 
-    build               Builds a Nitro Enclave based application for deployment.
-        --image          The image name
+    build               Build a Nitro Enclave based application for deployment
+        --image             The application image name.
 
-    push                Pushes containerized Nitro Enclave application to a remote repository.
-                        This command creates a repository under your private ECR registry if it is not
-                        created already.
-        --image          The image name
+    push                Push the Nitro Enclaves application container to a remote auto-generated
+                        private ECR repository.
+        --image             The application image name
 
-    run                 Deploys a Nitro Enclaves with K8s example application.
-        --image	          The image name
+    run                 Generate the deployment specification for the Nitro Enclaves application
+                        and deploy it
+        --image             The application image name
+	[--prepare-only]    Only generate the application deployment specification file without
+	                    deploying it
 
-    stop                Destroys the Nitro Enclaves application deployed via the 'run' command
-        --image		        The ECR image previously deployed and running.
+    stop                Terminate the Nitro Enclaves with K8s application deployed via the 'run' command
+        --image             The application image name
 
-    cleanup	            Cleans up all the demo resources previously created via the 'setup' command
-        --force	        Ignores errors and force cleans all resources and demo configuration.
+    cleanup             Clean up all the resources previously created via the 'setup' command
+        [--force]           Ignores errors and force cleans all resources and configuration
 "
 
 # Validate number of arguments given to a function.
@@ -207,6 +208,8 @@ cmd_configure() {
   apply_configuration "$settings" "$settings_file"
   ok_or_die "Cannot create configuration from $settings_file!"
 
+  say "Using configuration"
+  echo "$settings" | jq '.'
   say "Configuration finished successfully."
 }
 
