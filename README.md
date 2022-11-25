@@ -1,37 +1,42 @@
-# aws-nitro-enclaves-with-k8s
+# AWS Nitro Enclaves with Kubernetes
 
-This guide explains how to run `Nitro Enclaves` with [Amazon Elastic Kubernetes Service (EKS)](https://aws.amazon.com/eks/).
+This repository contains a collection of tools that can be used to build and run [AWS Nitro Enclaves](https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave.html) applications with [Amazon Elastic Kubernetes Service (EKS)](https://aws.amazon.com/eks/).
 
-## Prerequisites
+The userguide for AWS Nitro Enclaves with Kubernetes (K8s) can be found [here](https://docs.aws.amazon.com/enclaves/latest/user/kubernetes.html).
 
-This guide assumes that you have already created your environment to manage an EKS cluster. If not, please review
-[Getting started with Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/getting-started.html) user guide.
+# Overview
 
-Additionally, **bash**, **docker** and **[jq](https://stedolan.github.io/jq/download/)** (*a command-line JSON processor*) need to be installed on your system. <br />
+There are two NE (Nitro Enclaves) applications in this repository which can be built and deployed in a **Kubernetes** [deployment](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/).
 
-## Getting started
+- [hello](https://github.com/aws/aws-nitro-enclaves-cli/tree/main/examples/x86_64/hello): A simple application that prints periodically on the Nitro Enclave debug console
+- [kmstool](https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/docs/kmstool.md): A kms application that is able to connect to KMS from inside the Nitro Enclave and decrypt an encrypted KMS message received from the outside world
 
-This repository contains two example enclave applications:
-- [hello](https://github.com/aws/aws-nitro-enclaves-cli/tree/main/examples/x86_64/hello): A hello world application.
-- [kms](https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/docs/kmstool.md): An example application built with aws-nitro-enclaves-sdk-c that is able to connect to KMS and decrypt an encrypted KMS message.
+Dependencies like `docker`, `jq`, `eksctl` and `kubectl` are required for configuring, building and deploying various NE applications.
 
-We will build these enclave applications in the following steps and have them run in a **Kubernetes** [deployment](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/).
+Use the `enclavectl` tool from this repository to create EKS clusters, build NE applications and do deployments.
 
-## Using this repository
+To add the tool to your **$PATH** variable, use:
 
-This repository contains a tool called **enclavectl** that you can use to build and deploy your enclave apps. We will be using **enclavectl** tool along this tutorial. To add the tool to your **$PATH** variable, use:
-
-```
+```bash
 source env.sh
 ```
 
-To get some help for the tool, type:
-```
-enclavectl --help
-```
+See `enclavectl help` for all the supported options.
 
-The default settings for **enclavectl** are stored in **settings.json**. The content of this file is shown below. You can change the AWS region, the instance type of the cluster nodes, **Kubernetes** version, cluster name, cluster node group name, the maximum numbers of CPU cores that enclave can use and the node-level memory limit for enclave if wanted.
-```
+The default settings for `enclavectl` are stored in the local `settings.json` file.
+
+In this file the following input can be provided:
+- AWS region
+- Instance type
+- EKS cluster name
+- EKS nodegroup name
+- EKS nodegroup desired capacity
+- K8s version
+- CPUs per node to reserve for Nitro Enclaves
+- Memory per node to reserve for Nitro Enclaves
+
+Here is an example of a configuration file:
+```bash
 {
   "region" : "eu-central-1",
   "instance_type" : "m5.2xlarge",
@@ -43,102 +48,82 @@ The default settings for **enclavectl** are stored in **settings.json**. The con
   "node_enclave_memory_limit_mib": 768
 }
 ```
-<br />
 
-## Getting started
+## Building and running the hello example
 
-1) **Configuration**: Let's start off by configuring **enclavectl** tool.
-```
+1) Adapt the configuration and apply it to the project:
+```bash
 enclavectl configure --file settings.json
 ```
+After finishing, the tool confirms a successful configuration like below
 
-After running this command, the tool confirms successful configuration like below
-```
+```bash
 [enclavectl] Configuration finished successfully.
 ```
 
-and becomes ready for further steps.
-<br />
+2) Create a Nitro Enclave aware EKS cluster. This will use the `EnclaveOptions=true` parameter in the EC2 launch template that shall be used on the cluster nodegroup:
 
-2) **Set up an Enclave-aware EKS Cluster**:
-
-This is a preliminary step where we define the capabilities of our EKS cluster.
 ```
 enclavectl setup
 ```
 This high-level command consists of three internal steps:
-- **Create a launch template**: This helps us to create Nitro Enclaves-enabled EC2 instances.
-- **Create an EKS Cluster**: Sets up a single-node EKS cluster. The launch template created previously is used in this step.
-- **Enable [Nitro Enclaves K8s Device Plugin](https://github.com/aws/aws-nitro-enclaves-k8s-device-plugin)**: This plugin helps **Kubernetes** **[pods](https://kubernetes.io/docs/concepts/workloads/pods/)** to safely access Nitro Enclaves device driver.
-    As part of this step, the plugin is deployed as a **[daemonset](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/)** to the cluster.
+- Generates a basic EC2 Launch Template for Nitro Enclaves and UserData
+- Creates an EKS cluster with a managed node-group of configured capacity
+- Deploys the [Nitro Enclaves K8s Device plugin](https://github.com/aws/aws-nitro-enclaves-k8s-device-plugin): This plugin enables Kubernetes [pods](https://kubernetes.io/docs/concepts/workloads/pods/) to access Nitro Enclaves device driver. As part of this step, the plugin is deployed as a [daemonset](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/) to the cluster.
 
-<br />
+3) Build the hello enclave application
 
-3) **Build hello enclave application**:
-
-Normally, we deploy applications to EKS clusters in containers. This is still valid, but Enclave applications need one more step. When you want to run your application in an enclave, it needs to be packaged in an **Enclave Image File (EIF)**. To get more information about building **EIFs**, please take a look at this [user guide](https://docs.aws.amazon.com/enclaves/latest/user/building-eif.html).
-
-The tutorial utilizes a **builder** docker container which is responsible for building the enclave applications and creating executables. The build process might take some time. If you want to quickly try the examples without building an enclave application, there are prebuilt binaries available. To download them, use the helper script:
-```
-./scripts/fetch_prebuilt.sh
-```
-
-When the script succeeds, you will see prebuilt binaries saved under **containers/bin/** folder.
+Usually, applications run on EKS clusters in containers. A Nitro Enclave applications need one more step for running in an enclave - it needs to be packaged in an **Enclave Image File (EIF)**. To get more information about building **EIFs**, please take a look at this [user guide](https://docs.aws.amazon.com/enclaves/latest/user/building-eif.html).
 
 To trigger a build, use:
-```
+```bash
 enclavectl build --image hello
 ```
-*The build system builds an EIF file if it does not already exist in **containers/bin/** folder. Otherwise, existing EIF is reused.*
 
-<br />
+This phase makes use of a builder docker container which builds the targeted application if it is present in the `container` directory and packages it in a ready-to-deploy container.
+All application deliverables, including the Nitro Enclave EIF, are put in the `container/bin/` folder.
 
-4) **Push hello image to a docker repository**:
-In the following steps, EKS will need to pull our image from a docker repository. We will be using [Amazon Elastic Container Registry (ECR)](https://aws.amazon.com/ecr/) for this purpose.
-
-```
+4) Push the hello enclave application to a remote repository
+For deploying, a docker repository shall be required. We will be using [Amazon Elastic Container Registry (ECR)](https://aws.amazon.com/ecr/) for this purpose.
+```bash
 enclavectl push --image hello
 ```
 
-This command creates a repository under your private ECR registry unless there is none created before. Then, it pushes your **hello** image to the aforementioned repository.
+Unless it has already been created, this also creates a repository under your private ECR and pushes the **hello** image to it.
 For the subsequent uses, the command will always use the previously created repository.
 
-<br />
+5) Deploy the hello enclave application
 
-5) **Run hello example in the cluster**:
-To prepare our application for deployment, use
-```
+This command does necessary pre-initialization (if exists) for the application before deployment and generates deployment specification.
+```bash
 enclavectl run --image hello --prepare-only
 ```
 
-This command does necessary pre-initialization (if exists) for the application before deployment and generates deployment specification. To see the contents of
-the deployment specification, use
-```
+To see the contents of the deployment specification, use:
+```bash
 cat hello_deployment.yaml
 ```
 
-Finally, to deploy your application to the cluster, use:
-```
+Finally, to start the actual deployment, use:
+```bash
 kubectl apply -f hello_deployment.yaml
 ```
 
-All the steps above (preinitialization, deployment spec generation and application deployment) can also be done through a single command: 
-```
+The above steps can be done via a single command:
+```bash
 enclavectl run --image hello
 ```
-This command also does pre-initialization, deployment specification generation and finally calls **kubectl** in the background.
-<br />
 
-6) **Check the logs**:
+6) Check the application logs
 
-We successfully built and have started deploying our application. To check deployment status of the hello application, use
-```
+To check deployment status of the hello application, use
+```bash
 kubectl get pods --selector app=hello --watch
 ```
 
 After a while the command is expected to report a similar output like below after a short while:
 
-```
+```bash
 NAME                               READY   STATUS              RESTARTS   AGE
 hello-deployment-7bf5d9b79-qv8vm   0/1     Pending             0          2s
 hello-deployment-7bf5d9b79-qv8vm   0/1     Pending             0          27s
@@ -146,58 +131,80 @@ hello-deployment-7bf5d9b79-qv8vm   0/1     ContainerCreating   0          27s
 hello-deployment-7bf5d9b79-qv8vm   1/1     Running             0          30s
 ```
 
-When you ensure that the application is running, press "Ctrl + C" to terminate **kubectl**. Now, use the command below to see applications logs:
+When you ensure that the application is running, press "Ctrl + C" to terminate `kubectl` and check the logs:
+```bash
+kubectl logs hello-deployment-7bf5d9b79-qv8vm
 ```
-kubectl logs <deployment name>
-```
-You can find the `<deployment name>` from your terminal logs. In the sample terminal output above, it was **hello-deployment-7bf5d9b79-qv8vm**. After successful execution of this command, you will see output like this below.
+You can find the `<deployment name>` from your terminal logs. After successful execution of this command, you will see output like this below.
 
-```
+```bash
 [   1] Hello from the enclave side!
 [   2] Hello from the enclave side!
 [   3] Hello from the enclave side!
 [   4] Hello from the enclave side!
 [   5] Hello from the enclave side!
 ```
-The application keeps printing "Hello from the enclave side!" message every **5** seconds.
-<br />
+The application keeps printing "Hello from the enclave side!" message every 5 seconds.
 
-7) **Stopping the application**: Use
-```
+7) Stop the application logs
+
+To clear the previous deployment, use:
+```bash
 enclavectl stop --image hello
 ```
-to stop the application. This function not only executes `kubectl -f delete hello_deployment.yaml` in the background, but also uninitalizes
-resources if any were initialized after `enclavectl run` command.
+This function not only executes `kubectl -f delete hello_deployment.yaml` in the background, but also uninitalizes resources if any were initialized after `enclavectl run` command.
 
-We have already seen that the **hello** application is running. This time, we will be looking into a more sophisticated example.
+## Building and running the kmstool example
 
-## Building and running the KMS example
+[KMS Tool](https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/docs/kmstool.md) is an example application that uses is able to connect to KMS and decrypt an encrypted KMS message.
 
-[KMS Tool](https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/docs/kmstool.md) is an example application for aws-nitro-enclaves-sdk-c that is able to connect to KMS and decrypt an encrypted KMS message. For this application, the user would be required to create a role which is associated with the EC2 instance that has permissions to access the KMS service in order to create a key, encrypt a message and decrypt the message inside the enclave. In EKS, we already have a role associated with the instance but those permissions do not apply to the **Kubernetes** containers. In order to resolve this, we require a service account that has all the required permissions.
+**NOTE**: The user would be required to create a role which is associated with the EC2 instance that has permissions to access the KMS service in order to create a key, encrypt a message and decrypt the message inside the enclave. This is the way and the recommended way Nitro Enclaves are used today by users. More information in the doc listed at the beginning of the section.
 
-All the preliminary steps described above will be handled by **enclavectl** tool.
+For this demo application in EKS, we already have a role associated with the instance but those permissions do not apply to the Kubernetes containers. In order to resolve this, we require a [service account](https://docs.aws.amazon.com/eks/latest/userguide/service-accounts.html) that has all the required permissions with KMS in order to issue a successful KMS Decrypt from inside the Nitro Enclave.
 
-As an important note, AWS currently supports one enclave per EC2 instance. Before moving on, please ensure you stopped the **hello** application.
+As an important note, AWS currently supports one enclave per EC2 instance. Before moving on, please ensure you stopped the previous `hello` deployment.
 
-To run KMS example, please follow the similar steps below as you did for the **hello** application.
+To run KMS example, please follow the similar steps below as you did for the `hello` application.
 
-```
+```bash
 enclavectl build --image kms
 enclavectl push --image kms
 enclavectl run --image kms
 kubectl get pods --selector app=kms --watch
 ```
 
+And check the logs to see that the enclave has decrypted the message:
+```bash
+kubectl logs <kms-deployment-name>
+```
+After successful execution of this command, you will see output like this below. (User specific data has been truncated)
+```bash
+[kms-example] Creating a KMS key...
+[kms-example] Encrypting message...
+[kms-example] ******************************
+[kms-example] KMS Key ARN: arn:aws:kms:[...]
+[kms-example] Account ID: [...]
+[kms-example] Unencrypted message: Hello, KMS\!
+[kms-example] Ciphertext: AQICAHg7LT9PYQzAhL3hhzA4N15Lsok7f4DEEPGiNf8fyUM+5QHHy85xZXBek7uFPtNX+vJyAAAAZDBiBgkqhkiG9w0BBwagVTBTAgEAME4GCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMspJf9GEN1DqaJ55sAgEQgCGorI4UgmAAwmhfgsuXIud/PcTKwt8K8L/aPyj8Hq6KIVo=
+[kms-example] ******************************
+Start allocating memory...
+Started enclave with enclave-cid: 18, memory: 128 MiB, cpu-ids: [1, 5]
+[kms-example] Requesting from the enclave to decrypt message...
+[kms-example] ------------------------
+[kms-example] > Got response from the enclave!
+[kms-example] Object = { "Status": "Ok" } Object = { "Status": "Ok", "Message": "HelloKMS" }
+[kms-example] ------------------------
+Successfully terminated enclave i-[...]-enc[...]
+```
+
 ## Creating your own example application
 
-To quickly create your own application within this tutorial, you need to perform a few more steps. All application specific data is stored under **container** folder. **hello** can be
+To quickly create your own application within this tutorial, you need to perform a few more steps. All application specific data is stored under the `container` folder. The `hello` can be
 a good example to see what kind of files are required for your application. To see more information, please check this [document](./container/README.md).
 
 ## Cleaning up AWS resources
-If you followed this tutorial partially or entirely, it must have created some AWS resources. To clean them up, please use
-```
+If you followed this tutorial partially or entirely, it must have created some AWS resources. To clean them up, use:
+
+```bash
 enclavectl cleanup
 ```
-
-## Closing thoughts
-The hands-on examples in this repository demonstrate how to run Nitro Enclaves with EKS.
