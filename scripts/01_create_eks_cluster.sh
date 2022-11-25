@@ -22,7 +22,7 @@ managedNodeGroups:
     launchTemplate:
       id: $lt_id
       version: "1"
-    desiredCapacity: 1
+    desiredCapacity: $CONFIG_EKS_WORKER_NODE_CAPACITY
 
 EOF
 }
