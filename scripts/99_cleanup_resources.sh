@@ -19,7 +19,7 @@ delete_eks_resources() {
   say "Attempt to delete cluster node group: $CONFIG_EKS_WORKER_NODE_NAME"
 
   eksctl delete nodegroup --cluster=$CONFIG_EKS_CLUSTER_NAME --name=$CONFIG_EKS_WORKER_NODE_NAME \
-    --region $CONFIG_REGION || $force_cleanup || {
+    --region $CONFIG_REGION --wait || $force_cleanup || {
       say_err "Cluster node group cannot be deleted."
       return $FAILURE
     }
@@ -27,7 +27,7 @@ delete_eks_resources() {
   say "Attempt to delete cluster: $CONFIG_EKS_WORKER_NODE_NAME"
 
   eksctl delete cluster --name $CONFIG_EKS_CLUSTER_NAME \
-    --region $CONFIG_REGION || $force_cleanup || {
+    --region $CONFIG_REGION --wait || $force_cleanup || {
       say_err "Cluster cannot be deleted."
       return $FAILURE
     }
