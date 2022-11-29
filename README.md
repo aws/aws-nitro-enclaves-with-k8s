@@ -208,3 +208,8 @@ If you followed this tutorial partially or entirely, it must have created some A
 ```bash
 enclavectl cleanup
 ```
+
+## Security issue notifications
+
+If you discover a potential security issue, we ask that you notify AWS Security via our [vulnerability reporting page](https://aws.amazon.com/security/vulnerability-reporting/).
+Please do **not** create a public GitHub issue.
